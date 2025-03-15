@@ -1,4 +1,3 @@
-// Include/jwt_utils.h
 #ifndef AUTH_JWT_UTILS_H
 #define AUTH_JWT_UTILS_H
 

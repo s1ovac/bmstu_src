@@ -2,11 +2,16 @@
 #include <jwt-cpp/jwt.h>
 #include <drogon/drogon.h>
 
+// Initialize static members
 std::string JwtUtils::privateKey_;
 std::string JwtUtils::publicKey_;
 
 std::string JwtUtils::generateToken(const std::string& userId)
 {
+    if (privateKey_.empty()) {
+        throw std::runtime_error("JWT private key is not set");
+    }
+
     // Create a JWT using RS256 algorithm with the private key
     auto token = jwt::create()
             .set_type("JWT")
@@ -21,6 +26,10 @@ std::string JwtUtils::generateToken(const std::string& userId)
 
 bool JwtUtils::validateToken(const std::string& token, std::string& userId)
 {
+    if (publicKey_.empty()) {
+        throw std::runtime_error("JWT public key is not set");
+    }
+
     try {
         // Verify the token using RS256 algorithm with the public key
         auto verifier = jwt::verify()

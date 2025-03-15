@@ -1,5 +1,6 @@
 #include <drogon/drogon.h>
-#include "filters/JwtAuthFilter.h"
+#include "utils/JWT.h"
+#include "repository/DB.h"
 #include <fstream>
 #include <sstream>
 
@@ -97,8 +98,8 @@ int main() {
         LOG_INFO << "Successfully loaded JWT RSA keys";
 
         // Set keys in JwtUtils
-        JwtAuthFilter::setPrivateKey(privateKey);
-        JwtAuthFilter::setPublicKey(publicKey);
+        JwtUtils::setPrivateKey(privateKey);
+        JwtUtils::setPublicKey(publicKey);
     } catch (const std::exception& e) {
         LOG_ERROR << "Failed to load JWT keys: " << e.what();
         LOG_ERROR << "Make sure the key files exist at the specified paths in config.json";
