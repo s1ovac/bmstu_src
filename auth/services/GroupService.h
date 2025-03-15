@@ -9,7 +9,6 @@ class GroupService
 {
 public:
     static std::shared_ptr<GroupService> instance();
-    explicit GroupService(DB& db);
 
     // Create a new group
     bool createGroup(const std::string &group_name);
@@ -33,5 +32,6 @@ public:
     std::vector<std::pair<int, std::string>> getAllGroups();
 
 private:
-    DB& db_;
+    GroupService();
+    std::shared_ptr<DB> db_;
 };

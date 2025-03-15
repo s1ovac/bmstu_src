@@ -105,8 +105,6 @@ int main() {
         return 1;
     }
 
-    LOG_INFO << "Auth Service initialized and ready to start";
-
     LOG_INFO << "Auth service started.";
 
     // Start the application

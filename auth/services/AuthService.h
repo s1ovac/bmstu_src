@@ -7,14 +7,14 @@
 class AuthService {
 public:
     static std::shared_ptr<AuthService> instance();
-    explicit AuthService(DB& db);
 
     std::pair<std::string, bool> login(const std::string& login, const std::string& password);
     bool signup(const std::string& login, const std::string& password);
     std::vector<std::string> getUserRoles(const std::string& userId);
 
 private:
-    DB& db_;
+    AuthService();
+    std::shared_ptr<DB> db_;
 };
 
 #endif // AUTH_SERVICE_H

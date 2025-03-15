@@ -4,20 +4,23 @@
 
 std::shared_ptr<AuthService> AuthService::instance()
 {
-    static std::shared_ptr<AuthService> instance(nullptr);
-    if (!instance) {
-        throw std::runtime_error("AuthService not initialized. Use constructor to create an instance first.");
-    }
+    static std::shared_ptr<AuthService> instance(new AuthService());
     return instance;
 }
 
-AuthService::AuthService(DB& db) : db_(db)
+AuthService::AuthService()
 {
+    db_ = DB::instance();
+
+    if (!db_)
+    {
+        throw std::runtime_error("Database instance is not initialized");
+    }
 }
 
 std::pair<std::string, bool> AuthService::login(const std::string& login, const std::string& password)
 {
-    auto [userId, stored_hash, status] = db_.getPasswordHashByLogin(login);
+    auto [userId, stored_hash, status] = db_->getPasswordHashByLogin(login);
 
     if (status == UserFetchStatus::UserNotFound)
     {
@@ -43,7 +46,7 @@ std::pair<std::string, bool> AuthService::login(const std::string& login, const 
 bool AuthService::signup(const std::string& login, const std::string& password)
 {
     std::string password_hash = BCrypt::generateHash(password);
-    CreateUserStatus status = db_.createUser(login, password_hash);
+    CreateUserStatus status = db_->createUser(login, password_hash);
 
     if (status == CreateUserStatus::UserAlreadyExists)
     {
@@ -55,5 +58,5 @@ bool AuthService::signup(const std::string& login, const std::string& password)
 
 std::vector<std::string> AuthService::getUserRoles(const std::string& userId)
 {
-    return db_.getUserRoles(userId);
+    return db_->getUserRoles(userId);
 }

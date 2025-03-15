@@ -2,15 +2,18 @@
 
 std::shared_ptr<RoleService> RoleService::instance()
 {
-    static std::shared_ptr<RoleService> instance(nullptr);
-    if (!instance) {
-        throw std::runtime_error("RoleService not initialized. Use constructor to create an instance first.");
-    }
+    static std::shared_ptr<RoleService> instance(new RoleService());
     return instance;
 }
 
-RoleService::RoleService(DB& db) : db_(db)
+RoleService::RoleService()
 {
+    db_ = DB::instance();
+
+    if (!db_)
+    {
+        throw std::runtime_error("Database instance is not initialized");
+    }
 }
 
 bool RoleService::createRole(const std::string &role_name, const std::string &description)

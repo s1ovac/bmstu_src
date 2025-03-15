@@ -9,7 +9,6 @@ class RoleService
 {
 public:
     static std::shared_ptr<RoleService> instance();
-    explicit RoleService(DB& db);
 
     bool createRole(const std::string &role_name, const std::string &description);
     bool deleteRole(int role_id);
@@ -19,5 +18,6 @@ public:
     std::vector<std::pair<int, std::string>> getAllRoles();
 
 private:
-    DB& db_;
+    RoleService();
+    std::shared_ptr<DB> db_;
 };
