@@ -1,8 +1,6 @@
 // app/main.cpp
 #include <drogon/drogon.h>
-#include "include/controller.h"
-#include "include/user_db.h"
-#include "../fileservice/pkg/jwt_utils.h"
+#include "controllers/AuthController.h"
 #include <fstream>
 #include <sstream>
 
