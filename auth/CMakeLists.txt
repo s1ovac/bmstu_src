@@ -22,6 +22,7 @@ add_executable(auth
         services/AccessControlService.cpp
         services/RoleService.cpp
         services/GroupService.cpp
+        filters/JwtAuthFilter.cpp
         utils/JWT.cpp
 )
 

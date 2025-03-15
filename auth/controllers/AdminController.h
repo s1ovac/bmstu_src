@@ -6,27 +6,14 @@
 
 using namespace drogon;
 
-class AdminController
+class AdminController : public drogon::HttpController<AdminController>
 {
 public:
-    explicit AdminController(DB& db, AccessControlService& accessControlService)
-            : db_(db), accessControlService_(accessControlService) {}
+    METHOD_LIST_BEGIN
+        // GET /api/v1/admin/users
+        ADD_METHOD_TO(AdminController::getAllUsers, "/api/v1/admin/users", Get, "JwtAuthFilter");
+    METHOD_LIST_END
 
-    // Returns all users with their roles
+    // Возвращает всех пользователей с их ролями
     void getAllUsers(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
-
-    static void registerRoutes(drogon::HttpAppFramework &app, const std::shared_ptr<AdminController>& controller)
-    {
-        app.registerHandler("/api/v1/admin/users",
-                            [controller](const drogon::HttpRequestPtr& req,
-                                         std::function<void(const drogon::HttpResponsePtr&)>&& callback)
-                            {
-                                controller->getAllUsers(req, std::move(callback));
-                            },
-                            {drogon::Get});
-    }
-
-private:
-    DB& db_;
-    AccessControlService& accessControlService_;
 };

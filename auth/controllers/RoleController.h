@@ -1,16 +1,20 @@
 #pragma once
 
 #include <drogon/HttpController.h>
-#include "../services/RoleService.h"
-#include "../services/AccessControlService.h"
 
 using namespace drogon;
 
-class RoleController
+class RoleController : public drogon::HttpController<RoleController>
 {
 public:
-    explicit RoleController(RoleService& roleService, AccessControlService& accessControlService)
-            : roleService_(roleService), accessControlService_(accessControlService) {}
+    METHOD_LIST_BEGIN
+        ADD_METHOD_TO(RoleController::createRole, "/api/v1/role", Post, "JwtAuthFilter");
+        ADD_METHOD_TO(RoleController::deleteRole, "/api/v1/roles/{role_id}", Delete, "JwtAuthFilter");
+        ADD_METHOD_TO(RoleController::assignPermissionsToRole, "/api/v1/roles/{role_id}/permissions", Post, "JwtAuthFilter");
+        ADD_METHOD_TO(RoleController::assignRoleToUser, "/api/v1/users/{user_id}/roles", Post, "JwtAuthFilter");
+        ADD_METHOD_TO(RoleController::getUserRoles, "/api/v1/users/{user_id}/roles", Get, "JwtAuthFilter");
+        ADD_METHOD_TO(RoleController::getAllRoles, "/api/v1/roles", Get, "JwtAuthFilter");
+    METHOD_LIST_END
 
     void createRole(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
     void deleteRole(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int role_id);
@@ -18,63 +22,4 @@ public:
     void assignRoleToUser(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int user_id);
     void getUserRoles(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int user_id);
     void getAllRoles(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
-
-    static void registerRoutes(drogon::HttpAppFramework &app, const std::shared_ptr<RoleController>& controller)
-    {
-        app.registerHandler("/api/v1/role",
-                            [controller](const drogon::HttpRequestPtr& req,
-                                         std::function<void(const drogon::HttpResponsePtr&)>&& callback)
-                            {
-                                controller->createRole(req, std::move(callback));
-                            },
-                            {drogon::Post});
-
-        app.registerHandler("/api/v1/roles/{1}",
-                            [controller](const drogon::HttpRequestPtr& req,
-                                         std::function<void(const drogon::HttpResponsePtr&)>&& callback,
-                                         int role_id)
-                            {
-                                controller->deleteRole(req, std::move(callback), role_id);
-                            },
-                            {drogon::Delete});
-
-        app.registerHandler("/api/v1/roles/{1}/permissions",
-                            [controller](const drogon::HttpRequestPtr& req,
-                                         std::function<void(const drogon::HttpResponsePtr&)>&& callback,
-                                         int role_id)
-                            {
-                                controller->assignPermissionsToRole(req, std::move(callback), role_id);
-                            },
-                            {drogon::Post});
-
-        app.registerHandler("/api/v1/users/{1}/roles",
-                            [controller](const drogon::HttpRequestPtr& req,
-                                         std::function<void(const drogon::HttpResponsePtr&)>&& callback,
-                                         int user_id)
-                            {
-                                controller->assignRoleToUser(req, std::move(callback), user_id);
-                            },
-                            {drogon::Post});
-
-        app.registerHandler("/api/v1/users/{1}/roles",
-                            [controller](const drogon::HttpRequestPtr& req,
-                                         std::function<void(const drogon::HttpResponsePtr&)>&& callback,
-                                         int user_id)
-                            {
-                                controller->getUserRoles(req, std::move(callback), user_id);
-                            },
-                            {drogon::Get});
-
-        app.registerHandler("/api/v1/roles",
-                            [controller](const drogon::HttpRequestPtr& req,
-                                         std::function<void(const drogon::HttpResponsePtr&)>&& callback)
-                            {
-                                controller->getAllRoles(req, std::move(callback));
-                            },
-                            {drogon::Get});
-    }
-
-private:
-    RoleService& roleService_;
-    AccessControlService& accessControlService_;
 };
