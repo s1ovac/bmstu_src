@@ -36,39 +36,109 @@ bool DB::init()
 {
     if (!conn_) return false;
 
-    std::string query = R"(
-        CREATE TABLE IF NOT EXISTS users (
-            user_id SERIAL PRIMARY KEY,
-            email VARCHAR(100) NOT NULL UNIQUE,
-            password_hash VARCHAR(255) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_login TIMESTAMP,
-            is_active BOOLEAN DEFAULT TRUE
-        );
-    )";
+    // Create tables for users, roles, permissions, groups
+    std::vector<std::string> queries = {
+            // Users table
+            R"(
+            CREATE TABLE IF NOT EXISTS users (
+                user_id SERIAL PRIMARY KEY,
+                email VARCHAR(100) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP,
+                is_active BOOLEAN DEFAULT TRUE
+            );
+        )",
 
-    PGresult *res = PQexec(conn_, query.c_str());
+            // Roles table
+            R"(
+            CREATE TABLE IF NOT EXISTS roles (
+                role_id SERIAL PRIMARY KEY,
+                role_name VARCHAR(50) NOT NULL UNIQUE,
+                description TEXT
+            );
+        )",
 
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            // Permissions table
+            R"(
+            CREATE TABLE IF NOT EXISTS permissions (
+                permission_id SERIAL PRIMARY KEY,
+                permission_name VARCHAR(50) NOT NULL UNIQUE,
+                description TEXT
+            );
+        )",
+
+            // User-Role mapping table
+            R"(
+            CREATE TABLE IF NOT EXISTS user_roles (
+                user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+                role_id INT REFERENCES roles(role_id) ON DELETE CASCADE,
+                PRIMARY KEY (user_id, role_id)
+            );
+        )",
+
+            // Role-Permission mapping table
+            R"(
+            CREATE TABLE IF NOT EXISTS role_permissions (
+                role_id INT REFERENCES roles(role_id) ON DELETE CASCADE,
+                permission_id INT REFERENCES permissions(permission_id) ON DELETE CASCADE,
+                PRIMARY KEY (role_id, permission_id)
+            );
+        )",
+
+            // Groups table
+            R"(
+            CREATE TABLE IF NOT EXISTS groups (
+                group_id SERIAL PRIMARY KEY,
+                group_name VARCHAR(100) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        )",
+
+            // User-Group mapping table
+            R"(
+            CREATE TABLE IF NOT EXISTS user_groups (
+                user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+                group_id INT REFERENCES groups(group_id) ON DELETE CASCADE,
+                PRIMARY KEY (user_id, group_id)
+            );
+        )",
+
+            // User activity logs table
+            R"(
+            CREATE TABLE IF NOT EXISTS user_activity_logs (
+                log_id SERIAL PRIMARY KEY,
+                user_id INT REFERENCES users(user_id) ON DELETE SET NULL,
+                action VARCHAR(100) NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        )"
+    };
+
+    for (const auto& query : queries)
     {
-        std::cerr << "Failed to create table: " << PQerrorMessage(conn_) << std::endl;
+        PGresult *res = PQexec(conn_, query.c_str());
+        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        {
+            std::cerr << "Failed to execute query: " << PQerrorMessage(conn_) << std::endl;
+            PQclear(res);
+            return false;
+        }
         PQclear(res);
-        return false;
     }
 
-    PQclear(res);
     return true;
 }
-
-#include <tuple>
 
 std::tuple<std::string, std::string, UserFetchStatus> DB::getPasswordHashByLogin(const std::string& login)
 {
     if (!conn_) return {"", "", UserFetchStatus::QueryFailed};
 
     // Запрашиваем id и password_hash
-    std::string query = "SELECT user_id, password_hash FROM users WHERE email = '" + login + "';";
-    PGresult *res = PQexec(conn_, query.c_str());
+    std::string query = "SELECT user_id, password_hash FROM users WHERE email = $1;";
+    const char* paramValues[1] = { login.c_str() };
+
+    PGresult *res = PQexecParams(conn_, query.c_str(), 1, nullptr, paramValues, nullptr, nullptr, 0);
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK)
     {
@@ -100,20 +170,22 @@ CreateUserStatus DB::createUser(const std::string& login, const std::string& pas
 {
     if (!conn_) return CreateUserStatus::QueryFailed;
 
-    std::string query = "INSERT INTO users (email, password_hash) VALUES ('" + login + "', '" + password_hash + "');";
-    PGresult *res = PQexec(conn_, query.c_str());
+    std::string query = "INSERT INTO users (email, password_hash) VALUES ($1, $2);";
+    const char* paramValues[2] = { login.c_str(), password_hash.c_str() };
 
-    if (PQresultStatus(res) == PGRES_FATAL_ERROR)
+    PGresult *res = PQexecParams(conn_, query.c_str(), 2, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
     {
-        // Проверяем, что ошибка вызвана дубликатом
-        std::string sqlState = PQresultErrorField(res, PG_DIAG_SQLSTATE);
-        if (sqlState == "23505")
-        { // 23505 - код ошибки дубликата
+        // Check if the error is due to a duplicate
+        std::string errorMsg = PQerrorMessage(conn_);
+        if (errorMsg.find("duplicate key") != std::string::npos)
+        {
             PQclear(res);
             return CreateUserStatus::UserAlreadyExists;
         }
 
-        std::cerr << "Insert failed: " << PQerrorMessage(conn_) << std::endl;
+        std::cerr << "Insert failed: " << errorMsg << std::endl;
         PQclear(res);
         return CreateUserStatus::QueryFailed;
     }
@@ -122,10 +194,11 @@ CreateUserStatus DB::createUser(const std::string& login, const std::string& pas
     return CreateUserStatus::Success;
 }
 
+// Role and Permission Methods
+
 std::vector<std::string> DB::getUserRoles(const std::string& userId)
 {
     std::vector<std::string> roles;
-
     if (!conn_) return roles;
 
     std::string query = R"(
@@ -138,7 +211,6 @@ std::vector<std::string> DB::getUserRoles(const std::string& userId)
     const char* paramValues[1] = { userId.c_str() };
 
     PGresult* res = PQexecParams(conn_, query.c_str(), 1, nullptr, paramValues, nullptr, nullptr, 0);
-
     if (PQresultStatus(res) != PGRES_TUPLES_OK)
     {
         std::cerr << "Failed to get user roles: " << PQerrorMessage(conn_) << std::endl;
@@ -147,7 +219,6 @@ std::vector<std::string> DB::getUserRoles(const std::string& userId)
     }
 
     int rows = PQntuples(res);
-
     for (int i = 0; i < rows; ++i)
     {
         std::string role_name = PQgetvalue(res, i, 0);
@@ -156,4 +227,29 @@ std::vector<std::string> DB::getUserRoles(const std::string& userId)
 
     PQclear(res);
     return roles;
+}
+
+bool DB::createRole(const std::string &role_name, const std::string &description)
+{
+    if (!conn_) return false;
+
+    std::string query = R"(
+        INSERT INTO roles (role_name, description)
+        VALUES ($1, $2);
+    )";
+
+    const char* paramValues[2];
+    paramValues[0] = role_name.c_str();
+    paramValues[1] = description.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 2, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to create role: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return false;
+    }
+
+    PQclear(res);
+    return true;
 }
