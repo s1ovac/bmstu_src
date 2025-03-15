@@ -12,17 +12,16 @@ find_package(Drogon CONFIG REQUIRED)
 
 # Добавляем библиотеку authlib
 add_library(authlib
-        src/controller.cpp
-        src/user_db.cpp
-        src/service.cpp
-        src/jwt_utils.cpp
+        controllers/AuthController.cpp
+        repository/UsersRepo.cpp
+        services/AuthService.cpp
+        utils/JWT.cpp
 )
 
 # Указываем, что authlib зависит от Drogon
 target_link_libraries(authlib PRIVATE Drogon::Drogon)
 
-add_executable(auth app/main.cpp
-        include/jwt_utils.h)
+add_executable(auth main.cpp)
 
 # Линкуем библиотеку authlib с основным приложением
 target_link_libraries(auth PRIVATE authlib Drogon::Drogon)

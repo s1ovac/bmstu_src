@@ -1,5 +1,4 @@
-#include "controller.h"
-#include "jwt_utils.h"
+#include "AuthController.h"
 #include <drogon/drogon.h>
 
 void AuthController::login(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback)

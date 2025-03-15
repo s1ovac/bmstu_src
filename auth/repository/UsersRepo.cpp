@@ -1,10 +1,10 @@
-#include "user_db.h"
 #include <iostream>
 #include <utility>
+#include "UsersRepo.h"
 
 DB::DB(std::string host, std::string port, std::string dbname, std::string user, std::string password)
         : host_(std::move(host)), port_(std::move(port)), dbname_(std::move(dbname)), user_(std::move(user)), password_(std::move(password)), conn_(nullptr)
-        {
+{
     connect();
 }
 

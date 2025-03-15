@@ -1,6 +1,5 @@
-#include "service.h"
+#include "AuthService.h"
 #include "bcrypt/BCrypt.hpp"
-#include "user_db.h"
 #include "vector"
 
 AuthService::AuthService(DB& db) : db_(db) {}

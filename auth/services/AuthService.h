@@ -2,7 +2,7 @@
 #define AUTH_SERVICE_H
 
 #include <string>
-#include "user_db.h"
+#include "../repository/UsersRepo.h"
 
 class AuthService {
 public:

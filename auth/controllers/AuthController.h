@@ -3,7 +3,8 @@
 
 #include <drogon/HttpController.h>
 #include <drogon/drogon.h>
-#include "service.h"
+#include "../services/AuthService.h"
+#include "../utils/JWT.h"
 
 class AuthController{
 public:
@@ -20,7 +21,7 @@ public:
         app.registerHandler("/api/v1/login",
                             [controller](const drogon::HttpRequestPtr& req,
                                          std::function<void(const drogon::HttpResponsePtr&)>&& callback)
-                                         {
+                            {
                                 controller->login(req, std::move(callback));
                             },
                             {drogon::Post});
@@ -28,7 +29,7 @@ public:
         app.registerHandler("/api/v1/signup",
                             [controller](const drogon::HttpRequestPtr& req,
                                          std::function<void(const drogon::HttpResponsePtr&)>&& callback)
-                                         {
+                            {
                                 controller->signup(req, std::move(callback));
                             },
                             {drogon::Post});
