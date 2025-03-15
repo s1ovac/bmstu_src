@@ -13,8 +13,14 @@ find_package(Drogon CONFIG REQUIRED)
 # Добавляем библиотеку authlib
 add_library(authlib
         controllers/AuthController.cpp
+        controllers/RoleController.cpp
+        controllers/GroupController.cpp
+        controllers/AdminController.cpp
         repository/UsersRepo.cpp
         services/AuthService.cpp
+        services/AccessControlService.cpp
+        services/RoleService.cpp
+        services/GroupService.cpp
         utils/JWT.cpp
 )
 

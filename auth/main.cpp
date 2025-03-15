@@ -1,6 +1,11 @@
-// app/main.cpp
 #include <drogon/drogon.h>
 #include "controllers/AuthController.h"
+#include "controllers/RoleController.h"
+#include "controllers/GroupController.h"
+#include "controllers/AdminController.h"
+#include "services/RoleService.h"
+#include "services/GroupService.h"
+#include "services/AccessControlService.h"
 #include <fstream>
 #include <sstream>
 
@@ -25,13 +30,13 @@ int main() {
     auto &app = drogon::app();
     app.loadConfigFile("../config.json");
 
-    // Настройка CORS для всех запросов, начинающихся с /api
+    // Configure CORS for all requests starting with /api
     app.registerPreRoutingAdvice(
             [](const drogon::HttpRequestPtr &req, drogon::FilterCallback &&stop, drogon::FilterChainCallback &&pass)
             {
                 if (startsWith(req->path(), "/api"))
                 {
-                    // Обрабатываем preflight-запросы (OPTIONS)
+                    // Handle preflight requests (OPTIONS)
                     if (req->method() == drogon::Options)
                     {
                         auto resp = drogon::HttpResponse::newHttpResponse();
@@ -43,7 +48,7 @@ int main() {
                         return;
                     }
 
-                    // Добавляем заголовки CORS для всех остальных запросов
+                    // Add CORS headers for all other requests
                     req->addHeader("Access-Control-Allow-Origin", "*");
                     req->addHeader("Access-Control-Allow-Headers", "*");
                 }
@@ -51,7 +56,7 @@ int main() {
                 pass();
             });
 
-    // Настройка CORS для всех ответов на запросы
+    // Configure CORS for all responses
     app.registerPostHandlingAdvice(
             [](const drogon::HttpRequestPtr &req, const drogon::HttpResponsePtr &resp)
             {
@@ -62,7 +67,7 @@ int main() {
                 }
             });
 
-    // Загружаем параметры базы данных из конфигурационного файла
+    // Load database parameters from config
     auto dbConfig = app.getCustomConfig()["database"];
     std::string dbHost = dbConfig.get("host", "localhost").asString();
     std::string dbPort = dbConfig.get("port", "5432").asString();
@@ -91,26 +96,42 @@ int main() {
         return 1;
     }
 
-    // Создаем объект базы данных
+    // Create database instance
     DB db(dbHost, dbPort, dbName, dbUser, dbPassword);
 
-    // Инициализация базы данных
+    // Initialize database
     if (!db.init())
     {
         std::cerr << "Failed to initialize the database" << std::endl;
         return 1;
     }
 
-    // Создаем объект AuthService
+    // Create service instances
     AuthService authService(db);
+    AccessControlService accessControlService(db);
+    RoleService roleService(db);
+    GroupService groupService(db);
 
-    // Создаем экземпляр контроллера
+    // Register service singletons to make them available via instance() method
+    auto accessControlServicePtr = std::make_shared<AccessControlService>(accessControlService);
+    auto roleServicePtr = std::make_shared<RoleService>(roleService);
+    auto groupServicePtr = std::make_shared<GroupService>(groupService);
+
+    // Create controller instances
     auto authController = std::make_shared<AuthController>(authService);
+    auto roleController = std::make_shared<RoleController>(roleService, accessControlService);
+    auto groupController = std::make_shared<GroupController>(groupService, accessControlService);
+    auto adminController = std::make_shared<AdminController>(db, accessControlService);
 
-    // Регистрация маршрутов
+    // Register routes for all controllers
     AuthController::registerRoutes(app, authController);
+    RoleController::registerRoutes(app, roleController);
+    GroupController::registerRoutes(app, groupController);
+    AdminController::registerRoutes(app, adminController);
 
-    // Запуск приложения
+    LOG_INFO << "Auth service started on port " << app.getListeners()[0].toPort();
+
+    // Start the application
     app.run();
     return 0;
 }
