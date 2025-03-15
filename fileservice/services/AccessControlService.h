@@ -1,0 +1,19 @@
+#pragma once
+
+#include <string>
+#include <memory>
+#include "db.h"
+#include <drogon/HttpRequest.h>
+
+class AccessControlService
+{
+public:
+    static std::shared_ptr<AccessControlService> instance();
+
+    bool hasPermission(const std::string &user_id, const std::string &permission_name);
+
+private:
+    AccessControlService();
+    std::shared_ptr<DB> db_;
+};
+

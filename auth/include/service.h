@@ -1,0 +1,19 @@
+#ifndef AUTH_SERVICE_H
+#define AUTH_SERVICE_H
+
+#include <string>
+#include "user_db.h"
+
+class AuthService {
+public:
+    explicit AuthService(DB& db);
+
+    std::pair<std::string, bool> login(const std::string& login, const std::string& password);
+    bool signup(const std::string& login, const std::string& password);
+    std::vector<std::string> getUserRoles(const std::string& userId);
+
+private:
+    DB& db_;
+};
+
+#endif // AUTH_SERVICE_H

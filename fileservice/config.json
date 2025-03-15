@@ -1,0 +1,39 @@
+{
+    "listeners": [
+        {
+            "address": "0.0.0.0",
+            "port": 8081,
+            "https": false
+        }
+    ],
+    "filters": [
+        {
+            "JwtAuthFilter": {
+                "object_name": "JwtAuthFilter"
+            }
+        },
+        {
+            "PermissionFilter": {
+                "object_name": "PermissionFilter"
+            }
+        }
+    ],
+    "app": {
+        "threads": 4,
+        "logPath": "./",
+        "logLevel": "DEBUG",
+        "enableCORS": true
+    },
+    "cors": {
+        "allowOrigins": "*",
+        "allowMethods": "GET, POST, PUT, DELETE, OPTIONS",
+        "allowHeaders": "*",
+        "allowCredentials": false,
+        "exposeHeaders": "*",
+        "maxAge": 3600
+    },
+    "jwt": {
+        "private_key_path": "../keys/private.pem",
+        "public_key_path": "../keys/public.pem"
+    }
+}
