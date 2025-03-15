@@ -1,11 +1,6 @@
 #include <drogon/drogon.h>
-#include "controllers/AuthController.h"
-#include "controllers/RoleController.h"
-#include "controllers/GroupController.h"
-#include "controllers/AdminController.h"
-#include "services/RoleService.h"
-#include "services/GroupService.h"
-#include "services/AccessControlService.h"
+#include "utils/JWT.h"
+#include "repository/UsersRepo.h"
 #include <fstream>
 #include <sstream>
 
@@ -27,8 +22,14 @@ std::string readFile(const std::string& filePath) {
 }
 
 int main() {
+    trantor::Logger::setLogLevel(trantor::Logger::kDebug);
+
+    LOG_INFO << "Starting Auth Service";
+
     auto &app = drogon::app();
+
     app.loadConfigFile("../config.json");
+    LOG_DEBUG << "Configuration file loaded";
 
     // Configure CORS for all requests starting with /api
     app.registerPreRoutingAdvice(
@@ -106,32 +107,10 @@ int main() {
         return 1;
     }
 
-    // Create service instances
-    AuthService authService(db);
-    AccessControlService accessControlService(db);
-    RoleService roleService(db);
-    GroupService groupService(db);
-
-    // Register service singletons to make them available via instance() method
-    auto accessControlServicePtr = std::make_shared<AccessControlService>(accessControlService);
-    auto roleServicePtr = std::make_shared<RoleService>(roleService);
-    auto groupServicePtr = std::make_shared<GroupService>(groupService);
-
-    // Create controller instances
-    auto authController = std::make_shared<AuthController>(authService);
-    auto roleController = std::make_shared<RoleController>(roleService, accessControlService);
-    auto groupController = std::make_shared<GroupController>(groupService, accessControlService);
-    auto adminController = std::make_shared<AdminController>(db, accessControlService);
-
-    // Register routes for all controllers
-    AuthController::registerRoutes(app, authController);
-    RoleController::registerRoutes(app, roleController);
-    GroupController::registerRoutes(app, groupController);
-    AdminController::registerRoutes(app, adminController);
-
-    LOG_INFO << "Auth service started on port " << app.getListeners()[0].toPort();
+    LOG_INFO << "Auth service started.";
 
     // Start the application
     app.run();
+
     return 0;
 }

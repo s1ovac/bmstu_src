@@ -60,8 +60,10 @@ int main() {
 
     // Configure CORS for all responses
     app.registerPostHandlingAdvice(
-            [](const drogon::HttpRequestPtr &req, const drogon::HttpResponsePtr &resp) {
-                if (startsWith(req->path(), "/api")) {
+            [](const drogon::HttpRequestPtr &req, const drogon::HttpResponsePtr &resp)
+            {
+                if (startsWith(req->path(), "/api"))
+                {
                     resp->addHeader("Access-Control-Allow-Origin", "*");
                     resp->addHeader("Access-Control-Allow-Headers", "*");
                 }

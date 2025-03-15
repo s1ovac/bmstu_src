@@ -7,11 +7,12 @@ set(CMAKE_CXX_STANDARD 17)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(/usr/local/include)
 
-# Подключаем Drogon
-find_package(Drogon CONFIG REQUIRED)
+# Находим необходимые пакеты
+find_package(Drogon REQUIRED)
+find_package(PostgreSQL REQUIRED)
 
-# Добавляем библиотеку authlib
-add_library(authlib
+add_executable(auth
+        main.cpp
         controllers/AuthController.cpp
         controllers/RoleController.cpp
         controllers/GroupController.cpp
@@ -24,22 +25,31 @@ add_library(authlib
         utils/JWT.cpp
 )
 
-# Указываем, что authlib зависит от Drogon
-target_link_libraries(authlib PRIVATE Drogon::Drogon)
+# Указываем директории заголовочных файлов
+target_include_directories(auth PRIVATE
+        ${DROGON_INCLUDE_DIRS}
+        ${PostgreSQL_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
-add_executable(auth main.cpp)
+# Связываем необходимые библиотеки
+target_link_libraries(auth PRIVATE
+        ${DROGON_LIBRARIES}
+        ${PostgreSQL_LIBRARIES}
+)
 
-# Линкуем библиотеку authlib с основным приложением
-target_link_libraries(auth PRIVATE authlib Drogon::Drogon)
+# Проверяем использование стандарта C++17
+if (CMAKE_CXX_STANDARD LESS 17)
+    message(FATAL_ERROR "C++17 or higher is required")
+else()
+    message(STATUS "Using C++${CMAKE_CXX_STANDARD}")
+endif()
 
 # Подключаем библиотеку bcrypt, если требуется
 find_library(BCRYPT_LIB bcrypt)
 if (BCRYPT_LIB)
     target_link_libraries(auth PRIVATE ${BCRYPT_LIB})
 endif()
-
-# Подключаем libpq для работы с PostgreSQL
-find_package(PostgreSQL REQUIRED)
 
 target_include_directories(auth PRIVATE ${PostgreSQL_INCLUDE_DIRS})
 target_link_libraries(auth PRIVATE ${PostgreSQL_LIBRARIES})
