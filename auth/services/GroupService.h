@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "../repository/UsersRepo.h"
+#include "../repository/DB.h"
 
 class GroupService
 {

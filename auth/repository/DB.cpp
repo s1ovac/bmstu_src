@@ -1,9 +1,38 @@
+#include "DB.h"
 #include <iostream>
-#include <utility>
-#include "UsersRepo.h"
+#include <vector>
+#include <tuple>
+#include <optional>
 
-DB::DB(std::string host, std::string port, std::string dbname, std::string user, std::string password)
-        : host_(std::move(host)), port_(std::move(port)), dbname_(std::move(dbname)), user_(std::move(user)), password_(std::move(password)), conn_(nullptr)
+std::shared_ptr<DB> DB::instance_ = nullptr;
+
+std::shared_ptr<DB> DB::instance()
+{
+    if (!instance_)
+    {
+        throw std::runtime_error("DB instance is not initialized. Call DB::initInstance() first.");
+    }
+    return instance_;
+}
+
+void DB::initInstance(const std::string& host, const std::string& port,
+                      const std::string& dbname, const std::string& user,
+                      const std::string& password)
+{
+    if (!instance_)
+    {
+        instance_ = std::shared_ptr<DB>(new DB(host, port, dbname, user, password));
+        if (!instance_->init())
+        {
+            throw std::runtime_error("Failed to initialize the database");
+        }
+    }
+}
+
+DB::DB(const std::string& host, const std::string& port,
+       const std::string& dbname, const std::string& user,
+       const std::string& password)
+        : host_(host), port_(port), dbname_(dbname), user_(user), password_(password), conn_(nullptr)
 {
     connect();
 }
@@ -20,7 +49,12 @@ void DB::connect()
 {
     if (!conn_)
     {
-        std::string connInfo = "host=" + host_ + " port=" + port_ + " dbname=" + dbname_ + " user=" + user_ + " password=" + password_;
+        std::string connInfo =
+                "host=" + host_ +
+                " port=" + port_ +
+                " dbname=" + dbname_ +
+                " user=" + user_ +
+                " password=" + password_;
         conn_ = PQconnectdb(connInfo.c_str());
 
         if (PQstatus(conn_) != CONNECTION_OK)

@@ -2,8 +2,8 @@
 #define AUTH_CONTROLLER_H
 
 #include <drogon/HttpController.h>
-#include "../services/AuthService.h"
-#include "../utils/JWT.h"
+#include "services/AuthService.h"
+#include "utils/JWT.h"
 
 using namespace drogon;
 

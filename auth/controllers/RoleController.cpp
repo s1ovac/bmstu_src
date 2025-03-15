@@ -2,6 +2,12 @@
 #include <json/json.h>
 #include "../utils/JWT.h"
 
+RoleController::RoleController()
+{
+    roleService_ = RoleService::instance();
+    accessControlService_ = AccessControlService::instance();
+}
+
 void RoleController::createRole(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     // Extract user_id from the token
@@ -25,7 +31,7 @@ void RoleController::createRole(const HttpRequestPtr &req, std::function<void(co
     }
 
     // Check if user has permission to manage roles
-    if (!accessControlService_.hasPermission(user_id, "manage_roles"))
+    if (!accessControlService_->hasPermission(user_id, "manage_roles"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -47,7 +53,7 @@ void RoleController::createRole(const HttpRequestPtr &req, std::function<void(co
     std::string role_name = (*json)["role_name"].asString();
     std::string description = (*json).get("description", "").asString();
 
-    if (!roleService_.createRole(role_name, description))
+    if (!roleService_->createRole(role_name, description))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k500InternalServerError);
@@ -84,7 +90,7 @@ void RoleController::deleteRole(const HttpRequestPtr &req, std::function<void(co
         return;
     }
 
-    if (!accessControlService_.hasPermission(user_id, "manage_roles"))
+    if (!accessControlService_->hasPermission(user_id, "manage_roles"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -93,7 +99,7 @@ void RoleController::deleteRole(const HttpRequestPtr &req, std::function<void(co
         return;
     }
 
-    if (!roleService_.deleteRole(role_id))
+    if (!roleService_->deleteRole(role_id))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k404NotFound);
@@ -130,7 +136,7 @@ void RoleController::assignPermissionsToRole(const HttpRequestPtr &req, std::fun
         return;
     }
 
-    if (!accessControlService_.hasPermission(user_id, "manage_roles"))
+    if (!accessControlService_->hasPermission(user_id, "manage_roles"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -158,7 +164,7 @@ void RoleController::assignPermissionsToRole(const HttpRequestPtr &req, std::fun
         }
     }
 
-    if (!roleService_.assignPermissionsToRole(role_id, permission_ids))
+    if (!roleService_->assignPermissionsToRole(role_id, permission_ids))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k500InternalServerError);
@@ -195,7 +201,7 @@ void RoleController::assignRoleToUser(const HttpRequestPtr &req, std::function<v
         return;
     }
 
-    if (!accessControlService_.hasPermission(requester_user_id, "manage_roles"))
+    if (!accessControlService_->hasPermission(requester_user_id, "manage_roles"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -223,7 +229,7 @@ void RoleController::assignRoleToUser(const HttpRequestPtr &req, std::function<v
         }
     }
 
-    if (!roleService_.assignRolesToUser(user_id, role_ids))
+    if (!roleService_->assignRolesToUser(user_id, role_ids))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k500InternalServerError);
@@ -261,7 +267,7 @@ void RoleController::getUserRoles(const HttpRequestPtr &req, std::function<void(
     }
 
     // Only allow if current user is requesting their own roles or has manage_roles permission
-    if (requester_user_id != std::to_string(user_id) && !accessControlService_.hasPermission(requester_user_id, "manage_roles"))
+    if (requester_user_id != std::to_string(user_id) && !accessControlService_->hasPermission(requester_user_id, "manage_roles"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -270,7 +276,7 @@ void RoleController::getUserRoles(const HttpRequestPtr &req, std::function<void(
         return;
     }
 
-    auto roles = roleService_.getUserRoles(user_id);
+    auto roles = roleService_->getUserRoles(user_id);
 
     Json::Value respData;
     Json::Value rolesJson(Json::arrayValue);
@@ -310,7 +316,7 @@ void RoleController::getAllRoles(const HttpRequestPtr &req, std::function<void(c
     }
 
     // Check if user has permission to view all roles
-    if (!accessControlService_.hasPermission(user_id, "manage_roles"))
+    if (!accessControlService_->hasPermission(user_id, "manage_roles"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -319,7 +325,7 @@ void RoleController::getAllRoles(const HttpRequestPtr &req, std::function<void(c
         return;
     }
 
-    auto allRoles = roleService_.getAllRoles();
+    auto allRoles = roleService_->getAllRoles();
 
     // Create JSON array
     Json::Value arr(Json::arrayValue);

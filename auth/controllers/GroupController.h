@@ -1,6 +1,8 @@
 #pragma once
 
 #include <drogon/HttpController.h>
+#include "services/GroupService.h"
+#include "services/AccessControlService.h"
 
 using namespace drogon;
 
@@ -17,6 +19,8 @@ public:
         ADD_METHOD_TO(GroupController::getUserGroups,    "/api/v1/users/{user_id}/groups", Get,  "JwtAuthFilter");
     METHOD_LIST_END
 
+    GroupController();
+
     // Обработчики
     void createGroup(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
     void deleteGroup(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int group_id);
@@ -25,4 +29,8 @@ public:
     void removeUserFromGroup(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int group_id, int user_id);
     void getUserGroups(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int user_id);
     void getAllGroups(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
+
+private:
+    std::shared_ptr<GroupService> groupService_;
+    std::shared_ptr<AccessControlService> accessControlService_;
 };

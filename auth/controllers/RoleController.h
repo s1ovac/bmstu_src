@@ -1,6 +1,8 @@
 #pragma once
 
 #include <drogon/HttpController.h>
+#include "services/RoleService.h"
+#include "services/AccessControlService.h"
 
 using namespace drogon;
 
@@ -16,10 +18,16 @@ public:
         ADD_METHOD_TO(RoleController::getAllRoles, "/api/v1/roles", Get, "JwtAuthFilter");
     METHOD_LIST_END
 
+    RoleController();
+
     void createRole(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
     void deleteRole(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int role_id);
     void assignPermissionsToRole(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int role_id);
     void assignRoleToUser(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int user_id);
     void getUserRoles(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int user_id);
     void getAllRoles(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
+
+private:
+    std::shared_ptr<RoleService> roleService_;
+    std::shared_ptr<AccessControlService> accessControlService_;
 };

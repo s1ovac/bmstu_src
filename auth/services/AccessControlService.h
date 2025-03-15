@@ -2,7 +2,7 @@
 
 #include <string>
 #include <memory>
-#include "../repository/UsersRepo.h"
+#include "../repository/DB.h"
 
 class AccessControlService
 {

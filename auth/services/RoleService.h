@@ -3,7 +3,7 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include "../repository/UsersRepo.h"
+#include "../repository/DB.h"
 
 class RoleService
 {

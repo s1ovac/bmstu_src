@@ -21,10 +21,19 @@ enum class CreateUserStatus {
 
 class DB {
 public:
-    DB(std::string host, std::string port, std::string dbname, std::string user, std::string password);
+    // Метод для получения единственного экземпляра (Singleton)
+    static std::shared_ptr<DB> instance();
+
+    // Метод для инициализации экземпляра
+    static void initInstance(const std::string& host, const std::string& port,
+                             const std::string& dbname, const std::string& user,
+                             const std::string& password);
+
     ~DB();
 
     bool init();
+    PGconn* getConnection();
+
     std::tuple<std::string, std::string, UserFetchStatus> getPasswordHashByLogin(const std::string& login);
     CreateUserStatus createUser(const std::string& login, const std::string& password_hash);
 
@@ -51,6 +60,14 @@ public:
     std::vector<std::pair<int, std::string>> getAllGroups();
 
 private:
+    // Приватный конструктор
+    DB(const std::string& host, const std::string& port,
+       const std::string& dbname, const std::string& user,
+       const std::string& password);
+
+    // Статический экземпляр
+    static std::shared_ptr<DB> instance_;
+
     std::string host_;
     std::string port_;
     std::string dbname_;

@@ -1,6 +1,6 @@
 #include <drogon/drogon.h>
 #include "utils/JWT.h"
-#include "repository/UsersRepo.h"
+#include "repository/DB.h"
 #include <fstream>
 #include <sstream>
 
@@ -76,6 +76,15 @@ int main() {
     std::string dbUser = dbConfig.get("user", "postgres").asString();
     std::string dbPassword = dbConfig.get("password", "password").asString();
 
+    // Initialize database singleton instance
+    try {
+        DB::initInstance(dbHost, dbPort, dbName, dbUser, dbPassword);
+        LOG_INFO << "Database initialized successfully";
+    } catch (const std::exception& e) {
+        LOG_ERROR << e.what();
+        return 1;
+    }
+
     // Load RSA keys for JWT authentication
     try {
         // Get paths from config
@@ -94,16 +103,6 @@ int main() {
     } catch (const std::exception& e) {
         LOG_ERROR << "Failed to load JWT keys: " << e.what();
         LOG_ERROR << "Make sure the key files exist at the specified paths in config.json";
-        return 1;
-    }
-
-    // Create database instance
-    DB db(dbHost, dbPort, dbName, dbUser, dbPassword);
-
-    // Initialize database
-    if (!db.init())
-    {
-        std::cerr << "Failed to initialize the database" << std::endl;
         return 1;
     }
 

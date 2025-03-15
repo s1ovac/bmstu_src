@@ -1,31 +1,19 @@
-#include "GroupController.h"
+#include "controllers/GroupController.h"
 #include <json/json.h>
-#include "../utils/JWT.h"
+
+GroupController::GroupController()
+{
+    groupService_ = GroupService::instance();
+    accessControlService_ = AccessControlService::instance();
+}
 
 void GroupController::createGroup(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
 {
-    // Extract user_id from the token
-    auto authHeader = req->getHeader("Authorization");
-    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ") {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Unauthorized");
-        callback(resp);
-        return;
-    }
+    // Получаем user_id того, кто делает запрос
+    std::string requester_user_id = req->attributes()->get<std::string>("user_id");
 
-    std::string token = authHeader.substr(7);
-    std::string requester_user_id;
-    if (!JwtUtils::validateToken(token, requester_user_id)) {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Invalid token");
-        callback(resp);
-        return;
-    }
-
-    // Check permissions
-    if (!accessControlService_.hasPermission(requester_user_id, "manage_groups"))
+    // Проверяем права (manage_groups)
+    if (!accessControlService_->hasPermission(requester_user_id, "manage_groups"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -34,7 +22,7 @@ void GroupController::createGroup(const HttpRequestPtr &req, std::function<void(
         return;
     }
 
-    // Read JSON data
+    // Читаем JSON-данные
     auto json = req->getJsonObject();
     if (!json || !(*json)["group_name"].isString())
     {
@@ -47,8 +35,8 @@ void GroupController::createGroup(const HttpRequestPtr &req, std::function<void(
 
     std::string group_name = (*json)["group_name"].asString();
 
-    // Call service
-    if (!groupService_.createGroup(group_name))
+    // Вызываем сервис
+    if (!groupService_->createGroup(group_name))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k500InternalServerError);
@@ -65,27 +53,9 @@ void GroupController::createGroup(const HttpRequestPtr &req, std::function<void(
 
 void GroupController::deleteGroup(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int group_id)
 {
-    // Extract user_id from the token
-    auto authHeader = req->getHeader("Authorization");
-    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ") {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Unauthorized");
-        callback(resp);
-        return;
-    }
+    std::string requester_user_id = req->attributes()->get<std::string>("user_id");
 
-    std::string token = authHeader.substr(7);
-    std::string requester_user_id;
-    if (!JwtUtils::validateToken(token, requester_user_id)) {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Invalid token");
-        callback(resp);
-        return;
-    }
-
-    if (!accessControlService_.hasPermission(requester_user_id, "manage_groups"))
+    if (!accessControlService_->hasPermission(requester_user_id, "manage_groups"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -94,7 +64,7 @@ void GroupController::deleteGroup(const HttpRequestPtr &req, std::function<void(
         return;
     }
 
-    if (!groupService_.deleteGroup(group_id))
+    if (!groupService_->deleteGroup(group_id))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k404NotFound);
@@ -111,27 +81,9 @@ void GroupController::deleteGroup(const HttpRequestPtr &req, std::function<void(
 
 void GroupController::renameGroup(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int group_id)
 {
-    // Extract user_id from the token
-    auto authHeader = req->getHeader("Authorization");
-    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ") {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Unauthorized");
-        callback(resp);
-        return;
-    }
+    std::string requester_user_id = req->attributes()->get<std::string>("user_id");
 
-    std::string token = authHeader.substr(7);
-    std::string requester_user_id;
-    if (!JwtUtils::validateToken(token, requester_user_id)) {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Invalid token");
-        callback(resp);
-        return;
-    }
-
-    if (!accessControlService_.hasPermission(requester_user_id, "manage_groups"))
+    if (!accessControlService_->hasPermission(requester_user_id, "manage_groups"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -152,7 +104,7 @@ void GroupController::renameGroup(const HttpRequestPtr &req, std::function<void(
 
     std::string new_name = (*json)["new_name"].asString();
 
-    if (!groupService_.renameGroup(group_id, new_name))
+    if (!groupService_->renameGroup(group_id, new_name))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k404NotFound);
@@ -169,27 +121,9 @@ void GroupController::renameGroup(const HttpRequestPtr &req, std::function<void(
 
 void GroupController::addUserToGroup(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int group_id, int user_id)
 {
-    // Extract user_id from the token
-    auto authHeader = req->getHeader("Authorization");
-    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ") {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Unauthorized");
-        callback(resp);
-        return;
-    }
+    std::string requester_user_id = req->attributes()->get<std::string>("user_id");
 
-    std::string token = authHeader.substr(7);
-    std::string requester_user_id;
-    if (!JwtUtils::validateToken(token, requester_user_id)) {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Invalid token");
-        callback(resp);
-        return;
-    }
-
-    if (!accessControlService_.hasPermission(requester_user_id, "manage_groups"))
+    if (!accessControlService_->hasPermission(requester_user_id, "manage_groups"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -198,7 +132,7 @@ void GroupController::addUserToGroup(const HttpRequestPtr &req, std::function<vo
         return;
     }
 
-    if (!groupService_.addUserToGroup(user_id, group_id))
+    if (!groupService_->addUserToGroup(user_id, group_id))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k500InternalServerError);
@@ -215,27 +149,9 @@ void GroupController::addUserToGroup(const HttpRequestPtr &req, std::function<vo
 
 void GroupController::removeUserFromGroup(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int group_id, int user_id)
 {
-    // Extract user_id from the token
-    auto authHeader = req->getHeader("Authorization");
-    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ") {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Unauthorized");
-        callback(resp);
-        return;
-    }
+    std::string requester_user_id = req->attributes()->get<std::string>("user_id");
 
-    std::string token = authHeader.substr(7);
-    std::string requester_user_id;
-    if (!JwtUtils::validateToken(token, requester_user_id)) {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Invalid token");
-        callback(resp);
-        return;
-    }
-
-    if (!accessControlService_.hasPermission(requester_user_id, "manage_groups"))
+    if (!accessControlService_->hasPermission(requester_user_id, "manage_groups"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -244,7 +160,7 @@ void GroupController::removeUserFromGroup(const HttpRequestPtr &req, std::functi
         return;
     }
 
-    if (!groupService_.removeUserFromGroup(user_id, group_id))
+    if (!groupService_->removeUserFromGroup(user_id, group_id))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k500InternalServerError);
@@ -261,38 +177,21 @@ void GroupController::removeUserFromGroup(const HttpRequestPtr &req, std::functi
 
 void GroupController::getUserGroups(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int user_id)
 {
-    // Extract user_id from the token
-    auto authHeader = req->getHeader("Authorization");
-    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ") {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Unauthorized");
-        callback(resp);
-        return;
-    }
+    std::string requester_user_id = req->attributes()->get<std::string>("user_id");
 
-    std::string token = authHeader.substr(7);
-    std::string requester_user_id;
-    if (!JwtUtils::validateToken(token, requester_user_id)) {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Invalid token");
-        callback(resp);
-        return;
-    }
-
-    // User can only view their own groups or needs manage_groups permission
+    // Допустим, пользователь может смотреть только свои группы
+    // или, если он имеет разрешение "manage_groups", то любые:
     if (requester_user_id != std::to_string(user_id) &&
-        !accessControlService_.hasPermission(requester_user_id, "manage_groups"))
+        !accessControlService_->hasPermission(requester_user_id, "manage_groups"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
-        resp->setBody("Forbidden - you can see only your own groups or need manage_groups permission");
+        resp->setBody("Forbidden - you can see only your own groups or need manage_groups");
         callback(resp);
         return;
     }
 
-    auto groups = groupService_.getUserGroups(user_id);
+    auto groups = groupService_->getUserGroups(user_id);
 
     Json::Value respJson;
     Json::Value groupsArr(Json::arrayValue);
@@ -312,28 +211,10 @@ void GroupController::getUserGroups(const HttpRequestPtr &req, std::function<voi
 
 void GroupController::getAllGroups(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
 {
-    // Extract user_id from the token
-    auto authHeader = req->getHeader("Authorization");
-    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ") {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Unauthorized");
-        callback(resp);
-        return;
-    }
+    // Проверка прав "manage_groups", если нужно
+    std::string requester_user_id = req->attributes()->get<std::string>("user_id");
 
-    std::string token = authHeader.substr(7);
-    std::string requester_user_id;
-    if (!JwtUtils::validateToken(token, requester_user_id)) {
-        auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k401Unauthorized);
-        resp->setBody("Invalid token");
-        callback(resp);
-        return;
-    }
-
-    // Check manage_groups permission
-    if (!accessControlService_.hasPermission(requester_user_id, "manage_groups"))
+    if (!accessControlService_->hasPermission(requester_user_id, "manage_groups"))
     {
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k403Forbidden);
@@ -342,9 +223,10 @@ void GroupController::getAllGroups(const HttpRequestPtr &req, std::function<void
         return;
     }
 
-    auto groups = groupService_.getAllGroups();
+    // Вызываем сервис
+    auto groups = groupService_->getAllGroups();
 
-    // Create JSON response
+    // Формируем JSON
     Json::Value arr(Json::arrayValue);
     for (auto &g : groups)
     {
