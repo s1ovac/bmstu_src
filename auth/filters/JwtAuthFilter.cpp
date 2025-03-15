@@ -1,6 +1,6 @@
 #include "JwtAuthFilter.h"
 #include <drogon/drogon.h>
-#include "../utils/JWT.h"
+#include "utils/JWT.h"
 
 std::string JwtAuthFilter::privateKey_;
 std::string JwtAuthFilter::publicKey_;

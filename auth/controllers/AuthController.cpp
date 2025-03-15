@@ -1,6 +1,11 @@
 #include "AuthController.h"
 #include <drogon/drogon.h>
 
+AuthController::AuthController()
+{
+    authService_ = AuthService::instance();
+}
+
 void AuthController::login(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback)
 {
     LOG_INFO << "Login attempt received";
@@ -24,7 +29,7 @@ void AuthController::login(const drogon::HttpRequestPtr& req, std::function<void
     {
         LOG_INFO << "Authenticating user: " << login;
 
-        auto [userId, isAuthenticated] = authService_.login(login, password);
+        auto [userId, isAuthenticated] = authService_->login(login, password);
         if (isAuthenticated)
         {
             auto token = JwtUtils::generateToken(userId);
@@ -90,7 +95,7 @@ void AuthController::signup(const drogon::HttpRequestPtr& req, std::function<voi
 
     LOG_INFO << "Signing up user: " << login;
     try {
-        if (authService_.signup(login, password))
+        if (authService_->signup(login, password))
         {
             LOG_INFO << "Signup successful for user: " << login;
             Json::Value jsonResponse;

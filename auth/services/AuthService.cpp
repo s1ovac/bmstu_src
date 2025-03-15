@@ -2,7 +2,18 @@
 #include "bcrypt/BCrypt.hpp"
 #include "vector"
 
-AuthService::AuthService(DB& db) : db_(db) {}
+std::shared_ptr<AuthService> AuthService::instance()
+{
+    static std::shared_ptr<AuthService> instance(nullptr);
+    if (!instance) {
+        throw std::runtime_error("AuthService not initialized. Use constructor to create an instance first.");
+    }
+    return instance;
+}
+
+AuthService::AuthService(DB& db) : db_(db)
+{
+}
 
 std::pair<std::string, bool> AuthService::login(const std::string& login, const std::string& password)
 {

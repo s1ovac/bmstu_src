@@ -1,4 +1,4 @@
-#include "controllers/AdminController.h"
+#include "AdminController.h"
 #include <json/json.h>
 
 AdminController::AdminController()

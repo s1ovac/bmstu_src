@@ -2,10 +2,11 @@
 #define AUTH_SERVICE_H
 
 #include <string>
-#include "../repository/DB.h"
+#include "repository/DB.h"
 
 class AuthService {
 public:
+    static std::shared_ptr<AuthService> instance();
     explicit AuthService(DB& db);
 
     std::pair<std::string, bool> login(const std::string& login, const std::string& password);
