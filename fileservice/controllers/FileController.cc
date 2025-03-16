@@ -103,6 +103,102 @@ void FileController::deleteFiles(const HttpRequestPtr &req, std::function<void(c
     callback(resp);
 }
 
+void FileController::moveFile(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    std::string user_id = req->attributes()->get<std::string>("user_id");
+    auto json = req->getJsonObject();
+
+    if (!json || !(*json)["file_id"].isInt() || !(*json)["target_folder_id"].isInt())
+    {
+        LOG_ERROR << "Invalid JSON in request for moving file for user_id: " << user_id;
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setStatusCode(k400BadRequest);
+        resp->setBody("Invalid JSON: 'file_id' and 'target_folder_id' are required");
+        callback(resp);
+        return;
+    }
+
+    int file_id = (*json)["file_id"].asInt();
+    int target_folder_id = (*json)["target_folder_id"].asInt();
+
+    LOG_INFO << "Processing 'moveFile' request for user_id: " << user_id
+             << ", file_id: " << file_id
+             << ", target_folder_id: " << target_folder_id;
+
+    std::string errorMsg;
+    if (!fileService_->moveFile(user_id, file_id, target_folder_id, errorMsg))
+    {
+        LOG_ERROR << "Failed to move file for user_id: " << user_id << " with error: " << errorMsg;
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setStatusCode(k500InternalServerError);
+        resp->setBody(errorMsg);
+        callback(resp);
+        return;
+    }
+
+    Json::Value respData;
+    respData["message"] = "File moved successfully";
+    auto resp = HttpResponse::newHttpJsonResponse(respData);
+    callback(resp);
+}
+
+void FileController::moveFiles(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    std::string user_id = req->attributes()->get<std::string>("user_id");
+    auto json = req->getJsonObject();
+
+    if (!json || !(*json)["file_ids"].isArray() || !(*json)["target_folder_id"].isInt())
+    {
+        LOG_ERROR << "Invalid JSON in request for batch moving files for user_id: " << user_id;
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setStatusCode(k400BadRequest);
+        resp->setBody("Invalid JSON: 'file_ids' array and 'target_folder_id' are required");
+        callback(resp);
+        return;
+    }
+
+    std::vector<int> file_ids;
+    for (const auto& id : (*json)["file_ids"])
+    {
+        if (id.isInt())
+        {
+            file_ids.push_back(id.asInt());
+        }
+    }
+
+    if (file_ids.empty())
+    {
+        LOG_ERROR << "Empty file_ids array in batch move request for user_id: " << user_id;
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setStatusCode(k400BadRequest);
+        resp->setBody("No valid file IDs provided");
+        callback(resp);
+        return;
+    }
+
+    int target_folder_id = (*json)["target_folder_id"].asInt();
+
+    LOG_INFO << "Processing 'moveFiles' batch request for user_id: " << user_id
+             << ", file_count: " << file_ids.size()
+             << ", target_folder_id: " << target_folder_id;
+
+    std::string errorMsg;
+    if (!fileService_->moveFiles(user_id, file_ids, target_folder_id, errorMsg))
+    {
+        LOG_ERROR << "Failed to move files for user_id: " << user_id << " with error: " << errorMsg;
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setStatusCode(k500InternalServerError);
+        resp->setBody(errorMsg);
+        callback(resp);
+        return;
+    }
+
+    Json::Value respData;
+    respData["message"] = "Files moved successfully";
+    auto resp = HttpResponse::newHttpJsonResponse(respData);
+    callback(resp);
+}
+
 void FileController::downloadFile(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
 {
     std::string user_id = req->attributes()->get<std::string>("user_id");

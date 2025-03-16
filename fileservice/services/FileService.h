@@ -24,6 +24,8 @@ public:
     bool uploadFile(const std::string& user_id, int folder_id, const drogon::HttpRequestPtr &req, std::string &errorMsg);
     bool deleteFiles(const std::string& user_id, const std::vector<int>& file_ids, std::string &errorMsg);
     std::optional<std::string> getFilePath(const std::string& user_id, int file_id);
+    bool moveFile(const std::string& user_id, int file_id, int target_folder_id, std::string &errorMsg);
+    bool moveFiles(const std::string& user_id, const std::vector<int>& file_ids, int target_folder_id, std::string &errorMsg);
 
     // Методы для работы с папками
     std::vector<std::tuple<int, std::string, int, std::string>> getFolders(const std::string& user_id, int parent_folder_id = -1);

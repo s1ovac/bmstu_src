@@ -103,6 +103,28 @@ bool FileService::deleteFiles(const std::string& user_id, const std::vector<int>
     return true;
 }
 
+bool FileService::moveFile(const std::string& user_id, int file_id, int target_folder_id, std::string &errorMsg)
+{
+    // No need to actually move the physical file on disk, just update the database record
+    if (!db_->moveFile(user_id, file_id, target_folder_id))
+    {
+        errorMsg = "Failed to move file";
+        return false;
+    }
+    return true;
+}
+
+bool FileService::moveFiles(const std::string& user_id, const std::vector<int>& file_ids, int target_folder_id, std::string &errorMsg)
+{
+    // Use the optimized DB method to move all files in a single transaction
+    if (!db_->moveFiles(user_id, file_ids, target_folder_id))
+    {
+        errorMsg = "Failed to move files";
+        return false;
+    }
+    return true;
+}
+
 std::optional<std::string> FileService::getFilePath(const std::string& user_id, int file_id)
 {
     auto fileNameOpt = db_->getFilePath(user_id, file_id);
