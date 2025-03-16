@@ -1,6 +1,6 @@
 #include <drogon/drogon.h>
-#include <trantor/utils/Logger.h>
 #include "filters/JwtAuthFilter.h"
+#include "db.h"
 #include <fstream>
 #include <sstream>
 

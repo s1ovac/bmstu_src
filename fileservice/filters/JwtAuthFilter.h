@@ -4,7 +4,6 @@
 #include <jwt-cpp/jwt.h>
 #include <string>
 #include <memory>
-#include "db.h"
 
 using namespace drogon;
 

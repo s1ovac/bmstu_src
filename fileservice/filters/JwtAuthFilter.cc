@@ -41,13 +41,8 @@ void JwtAuthFilter::doFilter(const HttpRequestPtr &req, FilterCallback &&fcb, Fi
             return;
         }
 
-        // Get roles from database
-        auto db = DB::instance();
-        std::vector<std::string> roles = db->getUserRoles(userId);
-
         // Save userId and roles in request attributes
         req->attributes()->insert("user_id", userId);
-        req->attributes()->insert("roles", roles);
 
         fccb(); // Proceed to next filter or controller
     }
