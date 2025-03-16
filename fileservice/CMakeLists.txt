@@ -20,15 +20,7 @@ add_executable(fileservice
         controllers/FileController.cc
         filters/JwtAuthFilter.cc
         services/FileService.cc
-        filters/PermissionFilter.cc
-        controllers/RoleController.cpp
-        services/RoleService.cpp
-        services/AccessControlService.h
-        services/AccessControlService.cpp
         pkg/jwt_utils.cpp
-        controllers/AdminController.cpp
-        services/GroupService.cpp
-        controllers/GroupController.cpp
         # Добавьте другие файлы при необходимости
 )
 
