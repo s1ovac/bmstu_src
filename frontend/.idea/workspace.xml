@@ -5,8 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a4040b1e-eeea-4083-93f0-89bde9d33cd9" name="Changes" comment="Added auth page">
-      <change beforePath="$PROJECT_DIR$/../../Diploma/docx/~$ Переверзев РК6-32М.docx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../Diploma/docx/КР Переверзев РК6-32М.docx" beforeDir="false" afterPath="$PROJECT_DIR$/../../Diploma/docx/КР Переверзев РК6-32М.docx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/Admin.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/Admin.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/FileTree.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/FileTree.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/Home.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/Home.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/Login.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/Login.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/Signup.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/Signup.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/api.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/api.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,7 +37,7 @@
     </option>
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
@@ -49,7 +55,7 @@
     "git-widget-placeholder": "main",
     "javascript.nodejs.core.library.configured.version": "23.1.0",
     "javascript.nodejs.core.library.typings.version": "22.10.2",
-    "last_opened_file_path": "/Users/slovac/github.com/PereverzevDiploma/Practice/frontend/public",
+    "last_opened_file_path": "/Users/slovac/github.com/bmstu_src/frontend",
     "list.type.of.created.stylesheet": "CSS",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
@@ -131,6 +137,7 @@
       <workItem from="1732986244809" duration="1798000" />
       <workItem from="1734947304048" duration="4201000" />
       <workItem from="1734960853404" duration="9105000" />
+      <workItem from="1742137826753" duration="2550000" />
     </task>
     <task id="LOCAL-00001" summary="Added auth page">
       <option name="closed" value="true" />
@@ -148,21 +155,9 @@
   </component>
   <component name="VcsManagerConfiguration">
     <ignored-roots>
-      <path value="$PROJECT_DIR$/../../.." />
+      <path value="$USER_HOME$" />
     </ignored-roots>
     <MESSAGE value="Added auth page" />
     <option name="LAST_COMMIT_MESSAGE" value="Added auth page" />
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" type="javascript">
-          <url>file://$PROJECT_DIR$/src/lib/api.js</url>
-          <line>284</line>
-          <properties lambdaOrdinal="-1" />
-          <option name="timeStamp" value="3" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
   </component>
 </project>

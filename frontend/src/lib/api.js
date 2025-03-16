@@ -170,7 +170,7 @@ export const downloadFile = async (token, fileId) => {
 };
 
 export const getAllUsers = async (token) => {
-    const response = await fetch(`${FILE_BASE_URL}/api/v1/admin/users`, {
+    const response = await fetch(`${AUTH_BASE_URL}/api/v1/admin/users`, {
         headers: {
             "Authorization": `Bearer ${token}`
         }
@@ -184,7 +184,7 @@ export const getAllUsers = async (token) => {
 };
 
 export const getAllGroups = async (token) => {
-    const response = await fetch(`${FILE_BASE_URL}/api/v1/groups`, {
+    const response = await fetch(`${AUTH_BASE_URL}/api/v1/groups`, {
         headers: {
             "Authorization": `Bearer ${token}`
         }
@@ -198,7 +198,7 @@ export const getAllGroups = async (token) => {
 };
 
 export const createGroup = async (token, groupName) => {
-    const response = await fetch(`${FILE_BASE_URL}/api/v1/groups`, {
+    const response = await fetch(`${AUTH_BASE_URL}/api/v1/groups`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -216,7 +216,7 @@ export const createGroup = async (token, groupName) => {
 };
 
 export const renameGroup = async (token, groupId, newName) => {
-    const response = await fetch(`${FILE_BASE_URL}/api/v1/groups/${groupId}`, {
+    const response = await fetch(`${AUTH_BASE_URL}/api/v1/groups/${groupId}`, {
         method: "PUT",
         headers: {
             "Content-Type": "application/json",
@@ -233,7 +233,7 @@ export const renameGroup = async (token, groupId, newName) => {
 };
 
 export const deleteGroup = async (token, groupId) => {
-    const response = await fetch(`${FILE_BASE_URL}/api/v1/groups/${groupId}`, {
+    const response = await fetch(`${AUTH_BASE_URL}/api/v1/groups/${groupId}`, {
         method: "DELETE",
         headers: {
             "Authorization": `Bearer ${token}`
@@ -249,7 +249,7 @@ export const deleteGroup = async (token, groupId) => {
 
 export const addUserToGroup = async (token, userId, groupId) => {
     // POST /api/v1/groups/{group_id}/add/{user_id}
-    const url = `${FILE_BASE_URL}/api/v1/groups/${groupId}/add/${userId}`;
+    const url = `${AUTH_BASE_URL}/api/v1/groups/${groupId}/add/${userId}`;
     const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -266,7 +266,7 @@ export const addUserToGroup = async (token, userId, groupId) => {
 
 export const removeUserFromGroup = async (token, userId, groupId) => {
     // DELETE /api/v1/groups/{group_id}/remove/{user_id}
-    const url = `${FILE_BASE_URL}/api/v1/groups/${groupId}/remove/${userId}`;
+    const url = `${AUTH_BASE_URL}/api/v1/groups/${groupId}/remove/${userId}`;
     const response = await fetch(url, {
         method: "DELETE",
         headers: {
@@ -282,7 +282,7 @@ export const removeUserFromGroup = async (token, userId, groupId) => {
 };
 
 export const getUserRoles = async (token, userId) => {
-    const response = await fetch(`${FILE_BASE_URL}/api/v1/users/${userId}/roles`, {
+    const response = await fetch(`${AUTH_BASE_URL}/api/v1/users/${userId}/roles`, {
         headers: {
             "Authorization": `Bearer ${token}`
         }
