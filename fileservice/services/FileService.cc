@@ -1,5 +1,6 @@
 #include "FileService.h"
 #include <drogon/drogon.h>
+#include "validation.h"
 #include <fstream>
 
 std::shared_ptr<FileService> FileService::instance()
@@ -46,6 +47,13 @@ bool FileService::uploadFile(const std::string& user_id, int folder_id, const dr
 
     // Получаем безопасное имя файла
     std::string filename = fs::path(file.getFileName()).filename().string();
+
+    // Validate the filename
+    auto validationResult = ValidationUtils::validateName(filename);
+    if (!validationResult.valid) {
+        errorMsg = "Invalid filename: " + validationResult.errorMessage;
+        return false;
+    }
 
     // Путь для сохранения файла
     fs::path filePath = storagePath_ + "/" + filename;
@@ -149,6 +157,13 @@ std::vector<std::tuple<int, std::string, int, std::string>> FileService::getFold
 
 bool FileService::createFolder(const std::string& user_id, const std::string& folder_name, int parent_folder_id, std::string &errorMsg)
 {
+    // Validate the folder name
+    auto validationResult = ValidationUtils::validateName(folder_name);
+    if (!validationResult.valid) {
+        errorMsg = "Invalid folder name: " + validationResult.errorMessage;
+        return false;
+    }
+
     if (!db_->createFolder(user_id, folder_name, parent_folder_id))
     {
         errorMsg = "Failed to create folder in database";

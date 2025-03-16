@@ -53,7 +53,13 @@ void FileController::uploadFile(const HttpRequestPtr &req, std::function<void(co
     {
         LOG_ERROR << "File upload failed for user_id: " << user_id << " with error: " << errorMsg;
         auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k400BadRequest);
+
+        if (errorMsg.find("Invalid filename:") != std::string::npos) {
+            resp->setStatusCode(k400BadRequest);
+        } else {
+            resp->setStatusCode(k500InternalServerError);
+        }
+
         resp->setBody(errorMsg);
         callback(resp);
         return;
@@ -293,7 +299,7 @@ void FileController::createFolder(const HttpRequestPtr &req, std::function<void(
     }
 
     std::string folder_name = (*json)["folder_name"].asString();
-    int parent_folder_id = (*json).get("parent_folder_id", -1).asInt();
+    int parent_folder_id = (*json).get("parent_folder_id", 0).asInt();
 
     LOG_INFO << "Processing 'createFolder' request for user_id: " << user_id << ", folder_name: " << folder_name << ", parent_folder_id: " << parent_folder_id;
 
@@ -302,7 +308,13 @@ void FileController::createFolder(const HttpRequestPtr &req, std::function<void(
     {
         LOG_ERROR << "Failed to create folder for user_id: " << user_id << " with error: " << errorMsg;
         auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k500InternalServerError);
+
+        if (errorMsg.find("Invalid folder name:") != std::string::npos) {
+            resp->setStatusCode(k400BadRequest);
+        } else {
+            resp->setStatusCode(k500InternalServerError);
+        }
+
         resp->setBody(errorMsg);
         callback(resp);
         return;
