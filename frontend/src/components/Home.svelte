@@ -1,7 +1,8 @@
 <script>
     import { loggedIn, email as emailStore, userRoles } from '../lib/stores.js';
     import FileTree from './FileTree.svelte';
-    import { onMount, tick } from 'svelte';
+    import { onMount } from 'svelte';
+    import LoginComponent from './Login.svelte';
     import { getUserRoles } from '../lib/api.js'
 
     let userEmail = '';
@@ -67,8 +68,6 @@
 
                 console.log("User is authenticated");
 
-                // Continue with the rest of the initialization
-
                 // Initialize sidebar state from localStorage
                 sidebarCollapsed = getSavedSidebarState();
 
@@ -99,7 +98,6 @@
                 }
 
                 // Update store values
-                loggedIn.set(true);
                 if (userEmail) {
                     emailStore.set(userEmail);
                 }
@@ -167,7 +165,7 @@
     function refreshFiles() {
         showQuickActions = false;
         if (fileTreeComponent) {
-            fileTreeComponent.fetchData();
+            fileTreeComponent.refreshData();
         }
     }
 
@@ -210,7 +208,6 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" />
 </svelte:head>
 
-{#if loggedIn}
     <!-- Основной интерфейс хранилища для авторизованных пользователей -->
     <div class="app-container" class:dark-theme={isDarkMode}>
         <!-- Мобильная шапка -->
@@ -259,7 +256,7 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="#" class="nav-link" on:click|preventDefault={refreshFiles}>
+                            <a href="#" class="nav-link" on:click|preventDefault={() => refreshFiles()}>
                                 <i class="material-icons nav-icon">refresh</i>
                                 <span class="nav-text">Обновить</span>
                             </a>
@@ -317,7 +314,7 @@
 
                 <!-- Настройки и тема -->
                 <div class="sidebar-settings">
-                    <button class="theme-toggle" on:click={toggleDarkMode}>
+                    <button class="theme-toggle" on:click={() => toggleDarkMode()}>
                         <i class="material-icons">{isDarkMode ? 'light_mode' : 'dark_mode'}</i>
                         <span class="nav-text">{isDarkMode ? 'Светлая тема' : 'Тёмная тема'}</span>
                     </button>
@@ -330,7 +327,7 @@
                     </div>
                     <div class="user-info">
                         <span class="user-email">{userEmail}</span>
-                        <button on:click={onLogoutClick} class="logout-button">
+                        <button on:click={() => onLogoutClick()} class="logout-button">
                             <i class="material-icons">exit_to_app</i>
                             <span>Выйти</span>
                         </button>
@@ -353,7 +350,7 @@
                                     on:keydown={(e) => e.key === 'Enter' && handleSearch()}
                             />
                             {#if searchQuery}
-                                <button class="clear-search" on:click={clearSearch}>
+                                <button class="clear-search" on:click={() => clearSearch()}>
                                     <i class="material-icons">close</i>
                                 </button>
                             {/if}
@@ -361,7 +358,7 @@
                     </div>
 
                     <div class="toolbar-actions">
-                        <button class="action-button" on:click={toggleQuickActions}>
+                        <button class="action-button" on:click={() => toggleQuickActions()}>
                             <i class="material-icons">add</i>
                             <span>Создать</span>
                         </button>
@@ -371,14 +368,14 @@
                             <div class="quick-actions-menu">
                                 {#each quickActions as action}
                                     {#if !action.showIf || action.showIf()}
-                                        <button class="quick-action-item" on:click={action.action}>
+                                        <button class="quick-action-item" on:click={() => action.action()}>
                                             <i class="material-icons">{action.icon}</i>
                                             <span>{action.label}</span>
                                         </button>
                                     {/if}
                                 {/each}
                             </div>
-                            <div class="overlay" on:click={toggleQuickActions}></div>
+                            <div class="overlay" on:click={() => toggleQuickActions()}></div>
                         {/if}
                     </div>
                 </div>
@@ -391,7 +388,7 @@
 
         <!-- Мобильный оверлей для сайдбара -->
         {#if mobileMenuOpen}
-            <div class="sidebar-overlay" on:click={toggleMobileMenu}></div>
+            <div class="sidebar-overlay" on:click={() => toggleMobileMenu()}></div>
         {/if}
 
         <!-- Мобильное меню быстрых действий -->
@@ -399,14 +396,14 @@
             <div class="mobile-quick-actions">
                 <div class="mobile-quick-actions-header">
                     <h3>Действия</h3>
-                    <button class="icon-button" on:click={toggleQuickActions}>
+                    <button class="icon-button" on:click={() => toggleQuickActions()}>
                         <i class="material-icons">close</i>
                     </button>
                 </div>
                 <div class="mobile-quick-actions-content">
                     {#each quickActions as action}
                         {#if !action.showIf || action.showIf()}
-                            <button class="mobile-quick-action-item" on:click={action.action}>
+                            <button class="mobile-quick-action-item" on:click={() => action.action()}>
                                 <i class="material-icons">{action.icon}</i>
                                 <span>{action.label}</span>
                             </button>
@@ -416,7 +413,6 @@
             </div>
         {/if}
     </div>
-{/if}
 
 <style>
     /* Общие стили */
@@ -452,34 +448,8 @@
         overflow: hidden;
     }
 
-    /* Loading container */
-    .loading-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100vh;
-        background-color: #f8f9fa;
-    }
-
-    .spinner {
-        width: 40px;
-        height: 40px;
-        border: 4px solid rgba(26, 115, 232, 0.2);
-        border-radius: 50%;
-        border-top-color: #1a73e8;
-        animation: spin 1s linear infinite;
-        margin-bottom: 16px;
-    }
-
     @keyframes spin {
         to { transform: rotate(360deg); }
-    }
-
-    .loading-container span {
-        font-family: 'Roboto', sans-serif;
-        font-size: 16px;
-        color: #5f6368;
     }
 
     /* Мобильная шапка */
