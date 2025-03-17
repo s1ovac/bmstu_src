@@ -1,7 +1,7 @@
 <!-- src/components/FileTree.svelte -->
 <script>
     import { onMount } from 'svelte';
-    import { writable, get } from 'svelte/store';
+    import { writable, derived, get } from 'svelte/store';
     import {
         getFileTree,
         getFolders,
@@ -12,13 +12,16 @@
         deleteFolder
     } from '../lib/api.js';
 
-    const files = writable([]);
-    const folders = writable([]);
+    // Основные хранилища данных
+    const foldersList = writable([]);
+    const filesList = writable([]);
     const error = writable(null);
     const success = writable(null);
     const selectedItems = writable([]);
     const loading = writable(false);
+    const searchQuery = writable('');
 
+    // Локальные переменные
     let uploadInput;
     let newFolderName = '';
     let currentFolderId = 0;
@@ -26,10 +29,55 @@
     let showNewFolderDialog = false;
     let viewMode = localStorage.getItem('viewMode') || 'grid'; // grid или list
     let isUploading = false;
-    let selectedAll = false;
     let showDeleteConfirm = false;
     let dragOver = false;
-    let searchQuery = '';
+
+    // Вычисляемые хранилища для фильтрованных данных
+    const filteredFolders = derived(
+        [foldersList, searchQuery],
+        ([$foldersList, $searchQuery]) => {
+            console.log('Calculating filteredFolders', {
+                foldersList: $foldersList,
+                searchQuery: $searchQuery
+            });
+
+            if (!$searchQuery || $searchQuery.trim() === '') {
+                return $foldersList;
+            }
+
+            const query = $searchQuery.trim().toLowerCase();
+            const result = $foldersList.filter(
+                folder => folder && folder.folder_name &&
+                    folder.folder_name.toLowerCase().includes(query)
+            );
+
+            console.log('Filtered folders result:', result);
+            return result;
+        }
+    );
+
+    const filteredFiles = derived(
+        [filesList, searchQuery],
+        ([$filesList, $searchQuery]) => {
+            console.log('Calculating filteredFiles', {
+                filesList: $filesList,
+                searchQuery: $searchQuery
+            });
+
+            if (!$searchQuery || $searchQuery.trim() === '') {
+                return $filesList;
+            }
+
+            const query = $searchQuery.trim().toLowerCase();
+            const result = $filesList.filter(
+                file => file && file.file_name &&
+                    file.file_name.toLowerCase().includes(query)
+            );
+
+            console.log('Filtered files result:', result);
+            return result;
+        }
+    );
 
     // Функция для форматирования размера файла
     const formatFileSize = (size) => {
@@ -128,22 +176,46 @@
         loading.set(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
+            console.log(`Fetching data for folder ID: ${currentFolderId}`);
+
+            // Используем Promise.all для параллельного выполнения запросов
             const [folderResponse, fileResponse] = await Promise.all([
                 getFolders(token, currentFolderId),
                 getFileTree(token, currentFolderId)
             ]);
 
-            console.log("Folders response:", folderResponse);
-            console.log("Files response:", fileResponse);
+            console.log("API Responses:", {
+                folders: folderResponse,
+                files: fileResponse
+            });
 
-            folders.set(folderResponse.folders || []);
-            files.set(fileResponse.files || []);
+            // Безопасное извлечение данных из ответов API
+            const folders = folderResponse?.folders || [];
+            const files = fileResponse?.files || [];
+
+            console.log("Processed data:", {
+                folders: { length: folders.length, data: folders },
+                files: { length: files.length, data: files }
+            });
+
+            // Устанавливаем данные в хранилища
+            foldersList.set(folders);
+            filesList.set(files);
+            searchQuery.set(''); // Сбрасываем поиск при загрузке новой папки
             selectedItems.set([]);
-            selectedAll = false;
+
+            console.log("Stores updated:", {
+                folders: $foldersList,
+                files: $filesList
+            });
         } catch (err) {
             console.error("Error fetching data:", err);
             error.set(err.message);
             setTimeout(() => error.set(null), 3000);
+
+            // Устанавливаем пустые массивы в случае ошибки
+            foldersList.set([]);
+            filesList.set([]);
         } finally {
             loading.set(false);
         }
@@ -176,7 +248,7 @@
     };
 
     const confirmDelete = () => {
-        if (get(selectedItems).length === 0) {
+        if ($selectedItems.length === 0) {
             error.set('Не выбраны элементы для удаления');
             setTimeout(() => error.set(null), 3000);
             return;
@@ -189,8 +261,8 @@
         loading.set(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            const fileIds = get(selectedItems).filter(item => item.type === 'file').map(item => item.id);
-            const folderIds = get(selectedItems).filter(item => item.type === 'folder').map(item => item.id);
+            const fileIds = $selectedItems.filter(item => item.type === 'file').map(item => item.id);
+            const folderIds = $selectedItems.filter(item => item.type === 'folder').map(item => item.id);
 
             if (fileIds.length > 0) {
                 await deleteFiles(token, fileIds);
@@ -286,7 +358,7 @@
 
     const toggleItemSelection = (item, event) => {
         if (event) event.stopPropagation();
-        const index = get(selectedItems).findIndex(selected => selected.id === item.id && selected.type === item.type);
+        const index = $selectedItems.findIndex(selected => selected.id === item.id && selected.type === item.type);
         if (index !== -1) {
             selectedItems.update(items => items.filter((_, i) => i !== index));
         } else {
@@ -304,38 +376,33 @@
     };
 
     const toggleSelectAll = () => {
-        if (!selectedAll) {
-            const allItems = [];
-            $folders.forEach(folder => {
-                allItems.push({ id: folder.folder_id, type: 'folder', name: folder.folder_name });
-            });
-            $files.forEach(file => {
-                allItems.push({ id: file.file_id, type: 'file', name: file.file_name });
-            });
-            selectedItems.set(allItems);
-            selectedAll = true;
-        } else {
+        const folders = $foldersList;
+        const files = $filesList;
+        const allItems = $selectedItems;
+
+        // Если кол-во выделенных элементов равно общему кол-ву, то снимаем выделение
+        if (allItems.length === folders.length + files.length) {
             selectedItems.set([]);
-            selectedAll = false;
+        } else {
+            // Иначе выделяем все элементы
+            const newSelectedItems = [];
+            folders.forEach(folder => {
+                newSelectedItems.push({ id: folder.folder_id, type: 'folder', name: folder.folder_name });
+            });
+            files.forEach(file => {
+                newSelectedItems.push({ id: file.file_id, type: 'file', name: file.file_name });
+            });
+            selectedItems.set(newSelectedItems);
         }
     };
 
-    const filteredFolders = () => {
-        if (!searchQuery) return $folders;
-        return $folders.filter(folder =>
-            folder.folder_name.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    };
-
-    const filteredFiles = () => {
-        if (!searchQuery) return $files;
-        return $files.filter(file =>
-            file.file_name.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    };
-
-    $: totalItems = $folders.length + $files.length;
+    // Вычисляемые свойства для отображения в шаблоне
+    $: allSelected = $selectedItems.length === ($filteredFolders.length + $filteredFiles.length)
+        && ($filteredFolders.length + $filteredFiles.length) > 0;
+    $: totalItems = $filteredFolders.length + $filteredFiles.length;
     $: selectedCount = $selectedItems.length;
+    $: isEmptyContent = $filteredFolders.length === 0 && $filteredFiles.length === 0;
+    $: searchValue = $searchQuery;
 </script>
 
 <div
@@ -393,12 +460,13 @@
                 <i class="material-icons">search</i>
                 <input
                         type="text"
-                        bind:value={searchQuery}
+                        bind:value={searchValue}
+                        on:input={e => searchQuery.set(e.target.value)}
                         placeholder="Поиск"
                         class="search-input"
                 />
-                {#if searchQuery}
-                    <button class="clear-search" on:click={() => searchQuery = ''}>
+                {#if searchValue}
+                    <button class="clear-search" on:click={() => searchQuery.set('')}>
                         <i class="material-icons">close</i>
                     </button>
                 {/if}
@@ -419,8 +487,8 @@
                     <i class="material-icons">delete</i>
                     <span>Удалить</span>
                 </button>
-                {#if selectedCount === 1 && get(selectedItems)[0].type === 'file'}
-                    <button class="action-button" on:click={() => handleDownload(get(selectedItems)[0].id, get(selectedItems)[0].name)} title="Скачать">
+                {#if selectedCount === 1 && $selectedItems[0].type === 'file'}
+                    <button class="action-button" on:click={() => handleDownload($selectedItems[0].id, $selectedItems[0].name)} title="Скачать">
                         <i class="material-icons">download</i>
                         <span>Скачать</span>
                     </button>
@@ -446,9 +514,9 @@
 
         <div class="actions-right">
             {#if totalItems > 0}
-                <button class="action-button" on:click={toggleSelectAll} title={selectedAll ? 'Снять выделение' : 'Выбрать все'}>
-                    <i class="material-icons">{selectedAll ? 'deselect' : 'select_all'}</i>
-                    <span>{selectedAll ? 'Снять выделение' : 'Выбрать все'}</span>
+                <button class="action-button" on:click={toggleSelectAll} title={allSelected ? 'Снять выделение' : 'Выбрать все'}>
+                    <i class="material-icons">{allSelected ? 'deselect' : 'select_all'}</i>
+                    <span>{allSelected ? 'Снять выделение' : 'Выбрать все'}</span>
                 </button>
             {/if}
         </div>
@@ -477,11 +545,11 @@
 
     <!-- Содержимое папки -->
     <div class="content-container {viewMode}">
-        {#if filteredFolders().length === 0 && filteredFiles().length === 0}
+        {#if isEmptyContent}
             <div class="empty-folder">
                 <i class="material-icons">folder_open</i>
-                {#if searchQuery}
-                    <p>По запросу "{searchQuery}" ничего не найдено</p>
+                {#if searchValue}
+                    <p>По запросу "{searchValue}" ничего не найдено</p>
                 {:else}
                     <p>Эта папка пуста</p>
                 {/if}
@@ -489,12 +557,12 @@
             </div>
         {:else}
             <!-- Заголовки списка, если выбран режим list -->
-            {#if viewMode === 'list' && (filteredFolders().length > 0 || filteredFiles().length > 0)}
+            {#if viewMode === 'list' && ($filteredFolders.length > 0 || $filteredFiles.length > 0)}
                 <div class="list-header">
                     <div class="list-cell checkbox-cell">
                         <input
                                 type="checkbox"
-                                checked={selectedAll}
+                                checked={allSelected}
                                 on:change={toggleSelectAll}
                         />
                     </div>
@@ -506,10 +574,10 @@
             {/if}
 
             <!-- Папки -->
-            {#if filteredFolders().length > 0}
+            {#if $filteredFolders.length > 0}
                 {#if viewMode === 'grid'}
                     <div class="grid-container">
-                        {#each filteredFolders() as folder (folder.folder_id)}
+                        {#each $filteredFolders as folder (folder.folder_id)}
                             <div
                                     class="grid-item folder-item {isItemSelected({id: folder.folder_id, type: 'folder'}) ? 'selected' : ''}"
                                     on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}
@@ -532,7 +600,7 @@
                         {/each}
                     </div>
                 {:else}
-                    {#each filteredFolders() as folder (folder.folder_id)}
+                    {#each $filteredFolders as folder (folder.folder_id)}
                         <div
                                 class="list-row folder-item {isItemSelected({id: folder.folder_id, type: 'folder'}) ? 'selected' : ''}"
                                 on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}
@@ -561,10 +629,10 @@
             {/if}
 
             <!-- Файлы -->
-            {#if filteredFiles().length > 0}
+            {#if $filteredFiles.length > 0}
                 {#if viewMode === 'grid'}
                     <div class="grid-container">
-                        {#each filteredFiles() as file (file.file_id)}
+                        {#each $filteredFiles as file (file.file_id)}
                             <div
                                     class="grid-item file-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''}"
                                     on:click={() => handleDownload(file.file_id, file.file_name)}
@@ -587,7 +655,7 @@
                         {/each}
                     </div>
                 {:else}
-                    {#each filteredFiles() as file (file.file_id)}
+                    {#each $filteredFiles as file (file.file_id)}
                         <div
                                 class="list-row file-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''}"
                                 on:click={() => handleDownload(file.file_id, file.file_name)}
@@ -692,6 +760,37 @@
 
     .file-tree-container.loading {
         opacity: 0.8;
+    }
+
+    /* Отладочная панель */
+    .debug-panel {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        margin: 8px 16px;
+        overflow: hidden;
+    }
+
+    .debug-title {
+        background-color: #e9ecef;
+        padding: 8px 12px;
+        font-weight: bold;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .debug-content {
+        padding: 8px 12px;
+    }
+
+    .debug-content.hidden {
+        display: none;
+    }
+
+    .debug-content p {
+        margin: 4px 0;
+        font-family: monospace;
+        font-size: 12px;
     }
 
     /* Стили для зоны перетаскивания */
