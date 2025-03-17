@@ -6,7 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="a4040b1e-eeea-4083-93f0-89bde9d33cd9" name="Changes" comment="Added auth page">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/Home.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/Home.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/FileTree.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/FileTree.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/api.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/api.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -132,7 +133,7 @@
       <workItem from="1734947304048" duration="4201000" />
       <workItem from="1734960853404" duration="9105000" />
       <workItem from="1742137826753" duration="6455000" />
-      <workItem from="1742212239917" duration="462000" />
+      <workItem from="1742212239917" duration="4651000" />
     </task>
     <task id="LOCAL-00001" summary="Added auth page">
       <option name="closed" value="true" />
@@ -154,5 +155,17 @@
     </ignored-roots>
     <MESSAGE value="Added auth page" />
     <option name="LAST_COMMIT_MESSAGE" value="Added auth page" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="javascript">
+          <url>file://$PROJECT_DIR$/src/components/FileTree.svelte</url>
+          <line>332</line>
+          <properties lambdaOrdinal="-1" />
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>

@@ -54,19 +54,37 @@ export const signup = async (email, password) => {
 
 // Файловые операции используют FILE_BASE_URL
 
-// Existing file operations
+// Функция для получения списка файлов
 export const getFileTree = async (token, folderId = 0) => {
-    const response = await fetch(`${FILE_BASE_URL}/api/v1/files?folder_id=${folderId}`, {
-        headers: {
-            'Authorization': `Bearer ${token}`
+    try {
+        console.log(`Fetching files for folder ID: ${folderId}`);
+
+        // Защита от некорректных значений folderId
+        const sanitizedFolderId = folderId !== null && folderId !== undefined ? folderId : 0;
+
+        const response = await fetch(`${FILE_BASE_URL}/api/v1/files?folder_id=${sanitizedFolderId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Failed to fetch files: ${response.status} ${response.statusText}`, errorText);
+            throw new Error('Failed to fetch file tree');
         }
-    });
 
-    if (!response.ok) {
-        throw new Error('Failed to fetch file tree');
+        const data = await response.json();
+        console.log('Files response data:', data);
+
+        // Убедимся, что всегда возвращаем объект с массивом files
+        return {
+            files: Array.isArray(data.files) ? data.files : []
+        };
+    } catch (error) {
+        console.error('Error in getFileTree:', error);
+        throw error;
     }
-
-    return await response.json();
 };
 
 export const uploadFile = async (token, folderId, file) => {
@@ -90,17 +108,35 @@ export const uploadFile = async (token, folderId, file) => {
 
 // New folder operations
 export const getFolders = async (token, parentFolderId = 0) => {
-    const response = await fetch(`${FILE_BASE_URL}/api/v1/folders?parent_folder_id=${parentFolderId}`, {
-        headers: {
-            'Authorization': `Bearer ${token}`
+    try {
+        console.log(`Fetching folders for parent folder ID: ${parentFolderId}`);
+
+        // Защита от некорректных значений parentFolderId
+        const sanitizedParentFolderId = parentFolderId !== null && parentFolderId !== undefined ? parentFolderId : 0;
+
+        const response = await fetch(`${FILE_BASE_URL}/api/v1/folders?parent_folder_id=${sanitizedParentFolderId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Failed to fetch folders: ${response.status} ${response.statusText}`, errorText);
+            throw new Error('Failed to fetch folders');
         }
-    });
 
-    if (!response.ok) {
-        throw new Error('Failed to fetch folders');
+        const data = await response.json();
+        console.log('Folders response data:', data);
+
+        // Убедимся, что всегда возвращаем объект с массивом folders
+        return {
+            folders: Array.isArray(data.folders) ? data.folders : []
+        };
+    } catch (error) {
+        console.error('Error in getFolders:', error);
+        throw error;
     }
-
-    return await response.json();
 };
 
 export const createFolder = async (token, folderName, parentFolderId = 0) => {

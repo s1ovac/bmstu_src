@@ -15,52 +15,178 @@
     const files = writable([]);
     const folders = writable([]);
     const error = writable(null);
-    const selectedItems = writable([]); // Для хранения выбранных файлов и папок
+    const success = writable(null);
+    const selectedItems = writable([]);
+    const loading = writable(false);
+
     let uploadInput;
     let newFolderName = '';
-    let currentFolderId = 0; // Корневая папка
-    let folderStack = []; // Для отслеживания пути навигации
+    let currentFolderId = 0;
+    let folderStack = [];
+    let showNewFolderDialog = false;
+    let viewMode = localStorage.getItem('viewMode') || 'grid'; // grid или list
+    let isUploading = false;
+    let selectedAll = false;
+    let showDeleteConfirm = false;
+    let dragOver = false;
+    let searchQuery = '';
+
+    // Функция для форматирования размера файла
+    const formatFileSize = (size) => {
+        if (size < 1024) return `${size} B`;
+        else if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+        else if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+        else return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    };
+
+    // Функция для получения даты в удобном формате
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+    };
+
+    // Функция для определения иконки файла
+    const getFileIcon = (fileName) => {
+        const extension = fileName.split('.').pop().toLowerCase();
+
+        const iconMap = {
+            'pdf': 'picture_as_pdf',
+            'doc': 'description',
+            'docx': 'description',
+            'txt': 'article',
+            'xls': 'table_chart',
+            'xlsx': 'table_chart',
+            'ppt': 'slideshow',
+            'pptx': 'slideshow',
+            'jpg': 'image',
+            'jpeg': 'image',
+            'png': 'image',
+            'gif': 'gif',
+            'mp3': 'audio_file',
+            'wav': 'audio_file',
+            'mp4': 'video_file',
+            'avi': 'video_file',
+            'mov': 'video_file',
+            'zip': 'folder_zip',
+            'rar': 'folder_zip'
+        };
+
+        return iconMap[extension] || 'insert_drive_file';
+    };
 
     onMount(async () => {
+        console.log("FileTree component mounted");
         await fetchData();
+        console.log("Initial data loaded");
+
+        // Устанавливаем обработчик для загрузки файлов перетаскиванием
+        const dropZone = document.querySelector('.file-tree-container');
+        if (dropZone) {
+            console.log("Setting up drag & drop handlers");
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dragOver = true;
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dragOver = false;
+            });
+
+            dropZone.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                dragOver = false;
+
+                if (e.dataTransfer.files.length > 0) {
+                    try {
+                        isUploading = true;
+                        const token = JSON.parse(localStorage.getItem('user')).token;
+                        for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                            await uploadFile(token, currentFolderId, e.dataTransfer.files[i]);
+                        }
+                        success.set('Файлы успешно загружены');
+                        setTimeout(() => success.set(null), 3000);
+                        await fetchData();
+                    } catch (err) {
+                        error.set(err.message);
+                        setTimeout(() => error.set(null), 3000);
+                    } finally {
+                        isUploading = false;
+                    }
+                }
+            });
+        } else {
+            console.warn("Drop zone element not found");
+        }
     });
 
     const fetchData = async () => {
+        loading.set(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            console.log(currentFolderId);
             const [folderResponse, fileResponse] = await Promise.all([
                 getFolders(token, currentFolderId),
                 getFileTree(token, currentFolderId)
             ]);
-            folders.set(folderResponse.folders);
-            files.set(fileResponse.files);
+
+            console.log("Folders response:", folderResponse);
+            console.log("Files response:", fileResponse);
+
+            folders.set(folderResponse.folders || []);
+            files.set(fileResponse.files || []);
+            selectedItems.set([]);
+            selectedAll = false;
         } catch (err) {
+            console.error("Error fetching data:", err);
             error.set(err.message);
+            setTimeout(() => error.set(null), 3000);
+        } finally {
+            loading.set(false);
         }
     };
 
     const handleUpload = async () => {
         const filesToUpload = uploadInput.files;
         if (filesToUpload.length === 0) {
-            error.set('No file selected');
+            error.set('Файл не выбран');
+            setTimeout(() => error.set(null), 3000);
             return;
         }
+
+        isUploading = true;
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            await uploadFile(token, currentFolderId, filesToUpload[0]);
+            for (let i = 0; i < filesToUpload.length; i++) {
+                await uploadFile(token, currentFolderId, filesToUpload[i]);
+            }
             uploadInput.value = '';
+            success.set('Файлы успешно загружены');
+            setTimeout(() => success.set(null), 3000);
             await fetchData();
         } catch (err) {
             error.set(err.message);
+            setTimeout(() => error.set(null), 3000);
+        } finally {
+            isUploading = false;
         }
     };
 
-    const handleDelete = async () => {
+    const confirmDelete = () => {
         if (get(selectedItems).length === 0) {
-            error.set('No items selected for deletion');
+            error.set('Не выбраны элементы для удаления');
+            setTimeout(() => error.set(null), 3000);
             return;
         }
+        showDeleteConfirm = true;
+    };
+
+    const handleDelete = async () => {
+        showDeleteConfirm = false;
+        loading.set(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
             const fileIds = get(selectedItems).filter(item => item.type === 'file').map(item => item.id);
@@ -74,17 +200,25 @@
                     await deleteFolder(token, folderId);
                 }
             }
+
+            success.set('Элементы успешно удалены');
+            setTimeout(() => success.set(null), 3000);
             selectedItems.set([]);
             await fetchData();
         } catch (err) {
             error.set(err.message);
+            setTimeout(() => error.set(null), 3000);
+        } finally {
+            loading.set(false);
         }
     };
 
     const handleDownload = async (fileId, fileName) => {
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
+            loading.set(true);
             const blob = await downloadFile(token, fileId);
+            loading.set(false);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -93,27 +227,42 @@
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
+
+            success.set(`Файл ${fileName} скачан`);
+            setTimeout(() => success.set(null), 3000);
         } catch (err) {
+            loading.set(false);
             error.set(err.message);
+            setTimeout(() => error.set(null), 3000);
         }
     };
 
     const handleCreateFolder = async () => {
         if (newFolderName.trim() === '') {
-            error.set('Folder name cannot be empty');
+            error.set('Имя папки не может быть пустым');
+            setTimeout(() => error.set(null), 3000);
             return;
         }
+
+        loading.set(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
             await createFolder(token, newFolderName, currentFolderId);
             newFolderName = '';
+            showNewFolderDialog = false;
+            success.set('Папка создана');
+            setTimeout(() => success.set(null), 3000);
             await fetchData();
         } catch (err) {
             error.set(err.message);
+            setTimeout(() => error.set(null), 3000);
+        } finally {
+            loading.set(false);
         }
     };
 
     const navigateToFolder = (folderId, folderName) => {
+        console.log(`Navigating to folder: ${folderName} (ID: ${folderId})`);
         folderStack.push({ id: currentFolderId, name: folderName });
         currentFolderId = folderId;
         fetchData();
@@ -122,12 +271,21 @@
     const navigateBack = () => {
         if (folderStack.length > 0) {
             const previousFolder = folderStack.pop();
+            console.log(`Navigating back to: ${previousFolder.name} (ID: ${previousFolder.id})`);
             currentFolderId = previousFolder.id;
             fetchData();
         }
     };
 
-    const toggleItemSelection = (item) => {
+    const navigateHome = () => {
+        console.log("Navigating to home");
+        currentFolderId = 0;
+        folderStack = [];
+        fetchData();
+    };
+
+    const toggleItemSelection = (item, event) => {
+        if (event) event.stopPropagation();
         const index = get(selectedItems).findIndex(selected => selected.id === item.id && selected.type === item.type);
         if (index !== -1) {
             selectedItems.update(items => items.filter((_, i) => i !== index));
@@ -135,201 +293,1083 @@
             selectedItems.update(items => [...items, item]);
         }
     };
+
+    const isItemSelected = (item) => {
+        return $selectedItems.some(selected => selected.id === item.id && selected.type === item.type);
+    };
+
+    const toggleViewMode = () => {
+        viewMode = viewMode === 'grid' ? 'list' : 'grid';
+        localStorage.setItem('viewMode', viewMode);
+    };
+
+    const toggleSelectAll = () => {
+        if (!selectedAll) {
+            const allItems = [];
+            $folders.forEach(folder => {
+                allItems.push({ id: folder.folder_id, type: 'folder', name: folder.folder_name });
+            });
+            $files.forEach(file => {
+                allItems.push({ id: file.file_id, type: 'file', name: file.file_name });
+            });
+            selectedItems.set(allItems);
+            selectedAll = true;
+        } else {
+            selectedItems.set([]);
+            selectedAll = false;
+        }
+    };
+
+    const filteredFolders = () => {
+        if (!searchQuery) return $folders;
+        return $folders.filter(folder =>
+            folder.folder_name.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    };
+
+    const filteredFiles = () => {
+        if (!searchQuery) return $files;
+        return $files.filter(file =>
+            file.file_name.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    };
+
+    $: totalItems = $folders.length + $files.length;
+    $: selectedCount = $selectedItems.length;
 </script>
 
-<div class="actions">
-    <input type="file" bind:this={uploadInput} />
-    <button on:click={handleUpload}>Загрузить файл</button>
-
-    <input
-            type="text"
-            placeholder="Имя новой папки"
-            bind:value={newFolderName}
-            class="folderInput"
-    />
-    <button on:click={handleCreateFolder}>Создать папку</button>
-
-    <button on:click={handleDelete}>Удалить выбранное</button>
-    {#if folderStack.length > 0}
-        <button on:click={navigateBack}>Назад</button>
+<div
+        class="file-tree-container {dragOver ? 'drag-over' : ''}"
+        class:loading={$loading}
+>
+    {#if $loading}
+        <div class="loading-overlay">
+            <div class="spinner"></div>
+            <span>Загрузка...</span>
+        </div>
     {/if}
+
+    {#if dragOver}
+        <div class="drop-zone-overlay">
+            <div class="drop-zone-content">
+                <i class="material-icons">cloud_upload</i>
+                <span>Перетащите файлы сюда</span>
+            </div>
+        </div>
+    {/if}
+
+    <!-- Панель инструментов -->
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <div class="navigation-buttons">
+                <button class="icon-button" on:click={navigateBack} disabled={folderStack.length === 0} title="Назад">
+                    <i class="material-icons">arrow_back</i>
+                </button>
+                <button class="icon-button" on:click={navigateHome} disabled={currentFolderId === 0} title="Домой">
+                    <i class="material-icons">home</i>
+                </button>
+            </div>
+
+            <div class="breadcrumb">
+                <span class="breadcrumb-item" on:click={navigateHome} title="Мой диск">
+                    <i class="material-icons">cloud</i>
+                    <span>Мой диск</span>
+                </span>
+                {#each folderStack as folder, index}
+                    <i class="material-icons separator">chevron_right</i>
+                    <span class="breadcrumb-item" on:click={() => {
+                        currentFolderId = folder.id;
+                        folderStack = folderStack.slice(0, index + 1);
+                        fetchData();
+                    }}>
+                        {folder.name}
+                    </span>
+                {/each}
+            </div>
+        </div>
+
+        <div class="toolbar-right">
+            <div class="search-container">
+                <i class="material-icons">search</i>
+                <input
+                        type="text"
+                        bind:value={searchQuery}
+                        placeholder="Поиск"
+                        class="search-input"
+                />
+                {#if searchQuery}
+                    <button class="clear-search" on:click={() => searchQuery = ''}>
+                        <i class="material-icons">close</i>
+                    </button>
+                {/if}
+            </div>
+
+            <button class="icon-button" on:click={toggleViewMode} title={viewMode === 'grid' ? 'Показать список' : 'Показать сетку'}>
+                <i class="material-icons">{viewMode === 'grid' ? 'view_list' : 'grid_view'}</i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Панель действий -->
+    <div class="actions-bar">
+        <div class="actions-left">
+            {#if selectedCount > 0}
+                <span class="selected-count">{selectedCount} {selectedCount === 1 ? 'элемент' : 'элемента'} выбрано</span>
+                <button class="action-button" on:click={confirmDelete} title="Удалить выбранное">
+                    <i class="material-icons">delete</i>
+                    <span>Удалить</span>
+                </button>
+                {#if selectedCount === 1 && get(selectedItems)[0].type === 'file'}
+                    <button class="action-button" on:click={() => handleDownload(get(selectedItems)[0].id, get(selectedItems)[0].name)} title="Скачать">
+                        <i class="material-icons">download</i>
+                        <span>Скачать</span>
+                    </button>
+                {/if}
+            {:else}
+                <button class="action-button upload-button" title="Загрузить файлы">
+                    <i class="material-icons">cloud_upload</i>
+                    <span>Загрузить файлы</span>
+                    <input
+                            type="file"
+                            bind:this={uploadInput}
+                            on:change={handleUpload}
+                            multiple
+                            class="file-input"
+                    />
+                </button>
+                <button class="action-button" on:click={() => showNewFolderDialog = true} title="Создать папку">
+                    <i class="material-icons">create_new_folder</i>
+                    <span>Создать папку</span>
+                </button>
+            {/if}
+        </div>
+
+        <div class="actions-right">
+            {#if totalItems > 0}
+                <button class="action-button" on:click={toggleSelectAll} title={selectedAll ? 'Снять выделение' : 'Выбрать все'}>
+                    <i class="material-icons">{selectedAll ? 'deselect' : 'select_all'}</i>
+                    <span>{selectedAll ? 'Снять выделение' : 'Выбрать все'}</span>
+                </button>
+            {/if}
+        </div>
+    </div>
+
+    <!-- Сообщения об ошибках и успешных действиях -->
+    {#if $error}
+        <div class="message error-message">
+            <i class="material-icons">error</i>
+            <span>{$error}</span>
+            <button class="close-button" on:click={() => error.set(null)}>
+                <i class="material-icons">close</i>
+            </button>
+        </div>
+    {/if}
+
+    {#if $success}
+        <div class="message success-message">
+            <i class="material-icons">check_circle</i>
+            <span>{$success}</span>
+            <button class="close-button" on:click={() => success.set(null)}>
+                <i class="material-icons">close</i>
+            </button>
+        </div>
+    {/if}
+
+    <!-- Содержимое папки -->
+    <div class="content-container {viewMode}">
+        {#if filteredFolders().length === 0 && filteredFiles().length === 0}
+            <div class="empty-folder">
+                <i class="material-icons">folder_open</i>
+                {#if searchQuery}
+                    <p>По запросу "{searchQuery}" ничего не найдено</p>
+                {:else}
+                    <p>Эта папка пуста</p>
+                {/if}
+                <p class="empty-hint">Перетащите файлы сюда или воспользуйтесь кнопкой "Загрузить файлы"</p>
+            </div>
+        {:else}
+            <!-- Заголовки списка, если выбран режим list -->
+            {#if viewMode === 'list' && (filteredFolders().length > 0 || filteredFiles().length > 0)}
+                <div class="list-header">
+                    <div class="list-cell checkbox-cell">
+                        <input
+                                type="checkbox"
+                                checked={selectedAll}
+                                on:change={toggleSelectAll}
+                        />
+                    </div>
+                    <div class="list-cell name-cell">Название</div>
+                    <div class="list-cell date-cell">Дата создания</div>
+                    <div class="list-cell size-cell">Размер</div>
+                    <div class="list-cell actions-cell"></div>
+                </div>
+            {/if}
+
+            <!-- Папки -->
+            {#if filteredFolders().length > 0}
+                {#if viewMode === 'grid'}
+                    <div class="grid-container">
+                        {#each filteredFolders() as folder (folder.folder_id)}
+                            <div
+                                    class="grid-item folder-item {isItemSelected({id: folder.folder_id, type: 'folder'}) ? 'selected' : ''}"
+                                    on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}
+                            >
+                                <div class="item-checkbox" on:click|stopPropagation>
+                                    <input
+                                            type="checkbox"
+                                            checked={isItemSelected({id: folder.folder_id, type: 'folder'})}
+                                            on:change={(e) => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name}, e)}
+                                    />
+                                </div>
+                                <div class="item-icon">
+                                    <i class="material-icons">folder</i>
+                                </div>
+                                <div class="item-details">
+                                    <div class="item-name" title={folder.folder_name}>{folder.folder_name}</div>
+                                    <div class="item-meta">{formatDate(folder.created_at)}</div>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                {:else}
+                    {#each filteredFolders() as folder (folder.folder_id)}
+                        <div
+                                class="list-row folder-item {isItemSelected({id: folder.folder_id, type: 'folder'}) ? 'selected' : ''}"
+                                on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}
+                        >
+                            <div class="list-cell checkbox-cell" on:click|stopPropagation>
+                                <input
+                                        type="checkbox"
+                                        checked={isItemSelected({id: folder.folder_id, type: 'folder'})}
+                                        on:change={(e) => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name}, e)}
+                                />
+                            </div>
+                            <div class="list-cell name-cell">
+                                <i class="material-icons item-type-icon">folder</i>
+                                <span>{folder.folder_name}</span>
+                            </div>
+                            <div class="list-cell date-cell">{formatDate(folder.created_at)}</div>
+                            <div class="list-cell size-cell">—</div>
+                            <div class="list-cell actions-cell">
+                                <button class="icon-button" on:click|stopPropagation={() => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name})}>
+                                    <i class="material-icons">more_vert</i>
+                                </button>
+                            </div>
+                        </div>
+                    {/each}
+                {/if}
+            {/if}
+
+            <!-- Файлы -->
+            {#if filteredFiles().length > 0}
+                {#if viewMode === 'grid'}
+                    <div class="grid-container">
+                        {#each filteredFiles() as file (file.file_id)}
+                            <div
+                                    class="grid-item file-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''}"
+                                    on:click={() => handleDownload(file.file_id, file.file_name)}
+                            >
+                                <div class="item-checkbox" on:click|stopPropagation>
+                                    <input
+                                            type="checkbox"
+                                            checked={isItemSelected({id: file.file_id, type: 'file'})}
+                                            on:change={(e) => toggleItemSelection({id: file.file_id, type: 'file', name: file.file_name}, e)}
+                                    />
+                                </div>
+                                <div class="item-icon">
+                                    <i class="material-icons">{getFileIcon(file.file_name)}</i>
+                                </div>
+                                <div class="item-details">
+                                    <div class="item-name" title={file.file_name}>{file.file_name}</div>
+                                    <div class="item-meta">{formatFileSize(file.file_size)} • {formatDate(file.created_at)}</div>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                {:else}
+                    {#each filteredFiles() as file (file.file_id)}
+                        <div
+                                class="list-row file-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''}"
+                                on:click={() => handleDownload(file.file_id, file.file_name)}
+                        >
+                            <div class="list-cell checkbox-cell" on:click|stopPropagation>
+                                <input
+                                        type="checkbox"
+                                        checked={isItemSelected({id: file.file_id, type: 'file'})}
+                                        on:change={(e) => toggleItemSelection({id: file.file_id, type: 'file', name: file.file_name}, e)}
+                                />
+                            </div>
+                            <div class="list-cell name-cell">
+                                <i class="material-icons item-type-icon">{getFileIcon(file.file_name)}</i>
+                                <span>{file.file_name}</span>
+                            </div>
+                            <div class="list-cell date-cell">{formatDate(file.created_at)}</div>
+                            <div class="list-cell size-cell">{formatFileSize(file.file_size)}</div>
+                            <div class="list-cell actions-cell">
+                                <button class="icon-button" on:click|stopPropagation={() => handleDownload(file.file_id, file.file_name)}>
+                                    <i class="material-icons">download</i>
+                                </button>
+                            </div>
+                        </div>
+                    {/each}
+                {/if}
+            {/if}
+        {/if}
+    </div>
 </div>
 
-{#if $error}
-    <div class="error">{$error}</div>
+<!-- Модальное окно для создания новой папки -->
+{#if showNewFolderDialog}
+    <div class="modal-overlay">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Создать новую папку</h3>
+                <button class="close-button" on:click={() => showNewFolderDialog = false}>
+                    <i class="material-icons">close</i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="new-folder-name">Название папки</label>
+                    <input
+                            type="text"
+                            id="new-folder-name"
+                            bind:value={newFolderName}
+                            placeholder="Введите название папки"
+                            autofocus
+                    />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="button secondary" on:click={() => showNewFolderDialog = false}>Отмена</button>
+                <button class="button primary" on:click={handleCreateFolder} disabled={!newFolderName.trim()}>Создать</button>
+            </div>
+        </div>
+    </div>
 {/if}
 
-<div class="breadcrumb">
-    <span on:click={() => { currentFolderId = 0; folderStack = []; fetchData(); }}>Мой диск</span>
-    {#each folderStack as folder}
-        <span> / </span>
-        <span on:click={() => {
-            currentFolderId = folder.id;
-            folderStack = folderStack.slice(0, folderStack.indexOf(folder));
-            fetchData();
-        }}>{folder.name}</span>
-    {/each}
-</div>
-
-<div class="fileTree">
-    {#if $folders.length === 0 && $files.length === 0}
-        <div class="emptyMessage">Эта папка пуста</div>
-    {/if}
-
-    {#if $folders.length > 0}
-        <div class="folderSection">
-            <h3>Папки</h3>
-            <ul>
-                {#each $folders as folder}
-                    <li>
-                        <input
-                                type="checkbox"
-                                on:change={() => toggleItemSelection({ id: folder.folder_id, type: 'folder' })}
-                        />
-                        <i class="material-icons folderIcon" on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}>folder</i>
-                        <span on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}>{folder.folder_name}</span>
-                    </li>
-                {/each}
-            </ul>
+<!-- Модальное окно подтверждения удаления -->
+{#if showDeleteConfirm}
+    <div class="modal-overlay">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Подтверждение удаления</h3>
+                <button class="close-button" on:click={() => showDeleteConfirm = false}>
+                    <i class="material-icons">close</i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="delete-message">
+                    <i class="material-icons warning-icon">warning</i>
+                    Вы действительно хотите удалить выбранные элементы ({selectedCount})?
+                </p>
+                <p class="delete-warning">Это действие нельзя отменить!</p>
+            </div>
+            <div class="modal-footer">
+                <button class="button secondary" on:click={() => showDeleteConfirm = false}>Отмена</button>
+                <button class="button danger" on:click={handleDelete}>Удалить</button>
+            </div>
         </div>
-    {/if}
-
-    {#if $files.length > 0}
-        <div class="fileSection">
-            <h3>Файлы</h3>
-            <ul>
-                {#each $files as file}
-                    <li>
-                        <input
-                                type="checkbox"
-                                on:change={() => toggleItemSelection({ id: file.file_id, type: 'file' })}
-                        />
-                        <i class="material-icons fileIcon">insert_drive_file</i>
-                        <span>{file.file_name}</span>
-                        <button on:click={() => handleDownload(file.file_id, file.file_name)}>Скачать</button>
-                    </li>
-                {/each}
-            </ul>
-        </div>
-    {/if}
-</div>
+    </div>
+{/if}
 
 <style>
+    /* Подключаем иконки Material Icons */
     @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
 
-    .actions {
-        display: flex;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-
-    .actions input[type="file"],
-    .actions .folderInput {
-        margin-right: 10px;
-        padding: 5px;
-    }
-
-    .actions button {
-        margin-right: 10px;
-        padding: 8px 12px;
-        background-color: #4285f4;
-        color: white;
-        border: none;
-        cursor: pointer;
-        border-radius: 4px;
-    }
-
-    .actions button:hover {
-        background-color: #3367d6;
-    }
-
-    .error {
-        color: red;
-        margin-top: 10px;
-    }
-
-    .breadcrumb {
-        margin-bottom: 20px;
-        font-size: 16px;
-    }
-
-    .breadcrumb span {
-        cursor: pointer;
-        color: #4285f4;
-    }
-
-    .breadcrumb span:hover {
-        text-decoration: underline;
-    }
-
-    .fileTree {
+    /* Основные стили контейнера */
+    .file-tree-container {
         display: flex;
         flex-direction: column;
+        background-color: var(--bg-secondary, #f5f8fa);
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        position: relative;
+        min-height: 500px;
+        transition: all 0.3s ease;
     }
 
-    .folderSection,
-    .fileSection {
-        margin-bottom: 20px;
+    .file-tree-container.loading {
+        opacity: 0.8;
     }
 
-    .folderSection h3,
-    .fileSection h3 {
+    /* Стили для зоны перетаскивания */
+    .file-tree-container.drag-over {
+        border: 2px dashed var(--accent-color, #1a73e8);
+        background-color: rgba(26, 115, 232, 0.05);
+    }
+
+    .drop-zone-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+
+    .drop-zone-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--accent-color, #1a73e8);
+    }
+
+    .drop-zone-content i {
+        font-size: 48px;
         margin-bottom: 10px;
     }
 
-    ul {
-        list-style-type: none;
+    /* Стили панели инструментов */
+    .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        background-color: var(--bg-primary, #ffffff);
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+    }
+
+    .toolbar-left, .toolbar-right {
+        display: flex;
+        align-items: center;
+    }
+
+    .navigation-buttons {
+        display: flex;
+        margin-right: 16px;
+    }
+
+    .icon-button {
+        background: none;
+        border: none;
+        color: var(--text-secondary, #5f6368);
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background-color 0.2s;
         padding: 0;
     }
 
-    li {
+    .icon-button:hover:not(:disabled) {
+        background-color: var(--hover-bg, #f1f3f4);
+    }
+
+    .icon-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .breadcrumb {
         display: flex;
         align-items: center;
-        margin-bottom: 10px;
+        font-size: 14px;
+        flex-wrap: wrap;
     }
 
-    li input[type="checkbox"] {
-        margin-right: 10px;
-    }
-
-    .folderIcon,
-    .fileIcon {
-        margin-right: 10px;
+    .breadcrumb-item {
+        display: flex;
+        align-items: center;
+        color: var(--text-primary, #202124);
         cursor: pointer;
-        color: #5f6368;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: background-color 0.2s;
     }
 
-    .folderIcon:hover,
-    .fileIcon:hover {
+    .breadcrumb-item:hover {
+        background-color: var(--hover-bg, #f1f3f4);
+    }
+
+    .breadcrumb-item i {
+        margin-right: 4px;
+        font-size: 18px;
+        color: var(--accent-color, #1a73e8);
+    }
+
+    .separator {
+        font-size: 18px;
+        color: var(--text-secondary, #5f6368);
+        margin: 0 4px;
+    }
+
+    .search-container {
+        display: flex;
+        align-items: center;
+        background-color: var(--bg-tertiary, #eef2f6);
+        border-radius: 24px;
+        padding: 0 8px 0 12px;
+        margin-right: 12px;
+        transition: background-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-container:focus-within {
+        background-color: var(--bg-primary, #ffffff);
+        box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28);
+    }
+
+    .search-container i {
+        color: var(--text-secondary, #5f6368);
+        margin-right: 8px;
+    }
+
+    .search-input {
+        border: none;
+        background: transparent;
+        padding: 8px 0;
+        width: 200px;
+        font-size: 14px;
+        outline: none;
+        color: var(--text-primary, #202124);
+    }
+
+    .clear-search {
+        background: none;
+        border: none;
+        color: var(--text-secondary, #5f6368);
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Панель действий */
+    .actions-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 16px;
+        background-color: var(--bg-primary, #ffffff);
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+    }
+
+    .actions-left, .actions-right {
+        display: flex;
+        align-items: center;
+    }
+
+    .action-button {
+        display: flex;
+        align-items: center;
+        background-color: transparent;
+        border: none;
+        color: var(--text-primary, #202124);
+        font-size: 14px;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-right: 8px;
+        transition: background-color 0.2s;
+    }
+
+    .action-button:hover {
+        background-color: var(--hover-bg, #f1f3f4);
+    }
+
+    .action-button i {
+        margin-right: 8px;
+        font-size: 20px;
+    }
+
+    .upload-button {
+        position: relative;
+        background-color: var(--accent-color, #1a73e8);
+        color: white;
+    }
+
+    .upload-button:hover {
+        background-color: var(--accent-hover, #1565c0);
+    }
+
+    .file-input {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    .selected-count {
+        font-size: 14px;
+        margin-right: 16px;
+        color: var(--text-primary, #202124);
+    }
+
+    /* Сообщения */
+    .message {
+        display: flex;
+        align-items: center;
+        margin: 8px 16px;
+        padding: 12px 16px;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+    .message i {
+        margin-right: 8px;
+        font-size: 20px;
+    }
+
+    .error-message {
+        background-color: #fdeded;
+        color: #d93025;
+        border-left: 4px solid #d93025;
+    }
+
+    .success-message {
+        background-color: #e6f4ea;
+        color: #1e8e3e;
+        border-left: 4px solid #1e8e3e;
+    }
+
+    .message .close-button {
+        margin-left: auto;
+        background: none;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        padding: 4px;
+    }
+
+    /* Содержимое папки */
+    .content-container {
+        flex: 1;
+        padding: 16px;
+        overflow-y: auto;
+    }
+
+    /* Пустая папка */
+    .empty-folder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        min-height: 200px;
+        color: var(--text-secondary, #5f6368);
+        padding: 32px;
+        text-align: center;
+    }
+
+    .empty-folder i {
+        font-size: 64px;
+        margin-bottom: 16px;
+        color: var(--text-secondary, #5f6368);
+        opacity: 0.7;
+    }
+
+    .empty-folder p {
+        margin: 8px 0;
+        font-size: 16px;
+    }
+
+    .empty-hint {
+        font-size: 14px;
+        opacity: 0.8;
+    }
+
+    /* Сетка */
+    .grid-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        grid-gap: 16px;
+    }
+
+    .grid-item {
+        background-color: var(--bg-primary, #ffffff);
+        border-radius: 8px;
+        padding: 16px;
+        position: relative;
+        cursor: pointer;
+        transition: box-shadow 0.2s, transform 0.1s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .grid-item:hover {
+        box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28);
+    }
+
+    .grid-item.selected {
+        background-color: rgba(26, 115, 232, 0.08);
+        box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28);
+    }
+
+    .grid-item:active {
+        transform: scale(0.98);
+    }
+
+    .item-checkbox {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    .grid-item:hover .item-checkbox,
+    .grid-item.selected .item-checkbox {
+        opacity: 1;
+    }
+
+    .item-icon {
+        width: 64px;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+    }
+
+    .item-icon i {
+        font-size: 40px;
+    }
+
+    .folder-item .item-icon i {
+        color: #fbc02d;
+    }
+
+    .file-item .item-icon i {
         color: #4285f4;
     }
 
-    li span {
-        flex-grow: 1;
-        cursor: pointer;
-    }
-
-    li span:hover {
-        text-decoration: underline;
-    }
-
-    li button {
-        padding: 5px 10px;
-        background-color: #4285f4;
-        color: white;
-        border: none;
-        cursor: pointer;
-        border-radius: 4px;
-    }
-
-    li button:hover {
-        background-color: #3367d6;
-    }
-
-    .emptyMessage {
-        font-size: 18px;
-        color: #5f6368;
+    .item-details {
+        width: 100%;
         text-align: center;
-        margin-top: 50px;
+    }
+
+    .item-name {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-primary, #202124);
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .item-meta {
+        font-size: 12px;
+        color: var(--text-secondary, #5f6368);
+    }
+
+    /* Список */
+    .content-container.list {
+        padding: 0;
+    }
+
+    .list-header {
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        height: 48px;
+        background-color: var(--bg-tertiary, #eef2f6);
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-secondary, #5f6368);
+        text-transform: uppercase;
+    }
+
+    .list-row {
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        height: 56px;
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .list-row:hover {
+        background-color: var(--hover-bg, #f1f3f4);
+    }
+
+    .list-row.selected {
+        background-color: rgba(26, 115, 232, 0.08);
+    }
+
+    .list-cell {
+        display: flex;
+        align-items: center;
+    }
+
+    .checkbox-cell {
+        width: 40px;
+        flex-shrink: 0;
+    }
+
+    .name-cell {
+        flex: 2;
+        min-width: 200px;
+    }
+
+    .date-cell {
+        flex: 1;
+        min-width: 140px;
+    }
+
+    .size-cell {
+        flex: 1;
+        min-width: 100px;
+    }
+
+    .actions-cell {
+        width: 40px;
+        flex-shrink: 0;
+    }
+
+    .item-type-icon {
+        margin-right: 12px;
+    }
+
+    .folder-item .item-type-icon {
+        color: #fbc02d;
+    }
+
+    .file-item .item-type-icon {
+        color: #4285f4;
+    }
+
+    /* Модальные окна */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+    }
+
+    .modal-dialog {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 24px 38px 3px rgba(0, 0, 0, 0.14),
+        0 9px 46px 8px rgba(0, 0, 0, 0.12),
+        0 11px 15px -7px rgba(0, 0, 0, 0.2);
+        width: 400px;
+        max-width: 90vw;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 18px;
+        color: var(--text-primary, #202124);
+    }
+
+    .modal-body {
+        padding: 24px;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        padding: 16px 24px;
+        border-top: 1px solid var(--border-color, #e0e0e0);
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text-secondary, #5f6368);
+    }
+
+    .form-group input {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 14px;
+        border: 1px solid var(--border-color, #e0e0e0);
+        border-radius: 4px;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus {
+        border-color: var(--accent-color, #1a73e8);
+        box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+
+    .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 16px;
+        font-size: 14px;
+        border-radius: 4px;
+        cursor: pointer;
+        border: none;
+        font-weight: 500;
+        margin-left: 8px;
+        transition: background-color 0.2s;
+    }
+
+    .primary {
+        background-color: var(--accent-color, #1a73e8);
+        color: white;
+    }
+
+    .primary:hover {
+        background-color: var(--accent-hover, #1565c0);
+    }
+
+    .secondary {
+        background-color: var(--hover-bg, #f1f3f4);
+        color: var(--text-primary, #202124);
+    }
+
+    .secondary:hover {
+        background-color: #e8eaed;
+    }
+
+    .danger {
+        background-color: #d93025;
+        color: white;
+    }
+
+    .danger:hover {
+        background-color: #c5221f;
+    }
+
+    .button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .delete-message {
+        display: flex;
+        align-items: center;
+        font-size: 16px;
+        margin-bottom: 16px;
+    }
+
+    .warning-icon {
+        color: #f29900;
+        font-size: 24px;
+        margin-right: 12px;
+    }
+
+    .delete-warning {
+        color: #d93025;
+        font-weight: 500;
+        font-size: 14px;
+    }
+
+    /* Индикатор загрузки */
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.7);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 3px solid var(--accent-color, #1a73e8);
+        border-top-color: transparent;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .loading-overlay span {
+        font-size: 16px;
+        color: var(--text-primary, #202124);
+    }
+
+    /* Адаптивность */
+    @media (max-width: 768px) {
+        .grid-container {
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        }
+
+        .toolbar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .toolbar-left, .toolbar-right {
+            width: 100%;
+        }
+
+        .toolbar-right {
+            margin-top: 12px;
+        }
+
+        .search-container {
+            flex: 1;
+        }
+
+        .search-input {
+            width: 100%;
+        }
+
+        .actions-bar {
+            flex-wrap: wrap;
+        }
+
+        .actions-right {
+            margin-top: 8px;
+        }
+
+        .breadcrumb {
+            overflow-x: auto;
+            white-space: nowrap;
+            max-width: 100%;
+            padding-bottom: 4px;
+        }
+
+        .list-header, .list-row {
+            padding: 0 8px;
+        }
+
+        .date-cell, .size-cell {
+            display: none;
+        }
     }
 </style>
