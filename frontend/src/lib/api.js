@@ -174,6 +174,46 @@ export const deleteFolder = async (token, folderId) => {
     return true;
 };
 
+export const moveFile = async (token, fileId, targetFolderId) => {
+    const response = await fetch(`${FILE_BASE_URL}/api/v1/file/move`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            file_id: fileId,
+            target_folder_id: targetFolderId
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to move file');
+    }
+
+    return await response.json();
+};
+
+export const moveFiles = async (token, fileIds, targetFolderId) => {
+    const response = await fetch(`${FILE_BASE_URL}/api/v1/files/move`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            file_ids: fileIds,
+            target_folder_id: targetFolderId
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to move files');
+    }
+
+    return await response.json();
+};
+
 export const deleteFiles = async (token, fileIds) => {
     const response = await fetch(`${FILE_BASE_URL}/api/v1/files`, {
         method: 'DELETE',
