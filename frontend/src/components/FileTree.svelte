@@ -9,7 +9,9 @@
         deleteFiles,
         downloadFile,
         createFolder,
-        deleteFolder
+        deleteFolder,
+        moveFile,
+        moveFiles,
     } from '../lib/api.js';
 
     // Основные хранилища данных
@@ -31,6 +33,92 @@
     let isUploading = false;
     let showDeleteConfirm = false;
     let dragOver = false;
+    let showMoveDialog = false;
+    let allFolders = writable([]);  // Хранилище для всех папок (для выбора при перемещении)
+    let targetFolderId = 0;  // ID папки, куда перемещаем
+    let isFoldersLoading = false;
+
+    // Функция для загрузки всех папок (для диалога перемещения)
+    const fetchAllFolders = async () => {
+        isFoldersLoading = true;
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            // Получаем корневые папки
+            const rootFoldersResponse = await getFolders(token, 0);
+            let folders = rootFoldersResponse.folders || [];
+
+            // Для каждой папки получаем её подпапки (для простоты - только один уровень вложенности)
+            const subFolderPromises = folders.map(async folder => {
+                const subFoldersResponse = await getFolders(token, folder.folder_id);
+                return {
+                    ...folder,
+                    subFolders: subFoldersResponse.folders || []
+                };
+            });
+
+            const foldersWithSubs = await Promise.all(subFolderPromises);
+            allFolders.set(foldersWithSubs);
+        } catch (err) {
+            console.error('Error fetching folders:', err);
+            error.set('Не удалось загрузить список папок');
+            setTimeout(() => error.set(null), 3000);
+        } finally {
+            isFoldersLoading = false;
+        }
+    };
+
+    // Функция для открытия диалога перемещения
+    const openMoveDialog = async () => {
+        if ($selectedItems.length === 0) {
+            error.set('Не выбраны элементы для перемещения');
+            setTimeout(() => error.set(null), 3000);
+            return;
+        }
+
+        // Если выбраны только папки, показываем предупреждение
+        const onlyFolders = $selectedItems.every(item => item.type === 'folder');
+        if (onlyFolders) {
+            error.set('Перемещение папок в текущей версии не поддерживается');
+            setTimeout(() => error.set(null), 3000);
+            return;
+        }
+
+        // Загружаем список всех папок
+        await fetchAllFolders();
+        targetFolderId = 0; // По умолчанию - корневая папка
+        showMoveDialog = true;
+    };
+
+    const handleMove = async () => {
+        if ($selectedItems.length === 0) return;
+
+        loading.set(true);
+        showMoveDialog = false;
+
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            const fileItems = $selectedItems.filter(item => item.type === 'file');
+
+            if (fileItems.length === 1) {
+                // Если выбран один файл, используем moveFile
+                await moveFile(token, fileItems[0].id, targetFolderId);
+            } else if (fileItems.length > 1) {
+                // Если выбрано несколько файлов, используем moveFiles
+                const fileIds = fileItems.map(item => item.id);
+                await moveFiles(token, fileIds, targetFolderId);
+            }
+
+            success.set('Файлы успешно перемещены');
+            setTimeout(() => success.set(null), 3000);
+            selectedItems.set([]);
+            await fetchData();
+        } catch (err) {
+            error.set('Ошибка при перемещении файлов: ' + err.message);
+            setTimeout(() => error.set(null), 3000);
+        } finally {
+            loading.set(false);
+        }
+    };
 
     // Вычисляемые хранилища для фильтрованных данных
     const filteredFolders = derived(
@@ -487,6 +575,12 @@
                     <i class="material-icons">delete</i>
                     <span>Удалить</span>
                 </button>
+
+                <button class="action-button" on:click={openMoveDialog} title="Переместить выбранное">
+                    <i class="material-icons">drive_file_move</i>
+                    <span>Переместить</span>
+                </button>
+
                 {#if selectedCount === 1 && $selectedItems[0].type === 'file'}
                     <button class="action-button" on:click={() => handleDownload($selectedItems[0].id, $selectedItems[0].name)} title="Скачать">
                         <i class="material-icons">download</i>
@@ -685,6 +779,60 @@
         {/if}
     </div>
 </div>
+
+{#if showMoveDialog}
+    <div class="modal-overlay">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Переместить {selectedCount} {selectedCount === 1 ? 'файл' : 'файла'}</h3>
+                <button class="close-button" on:click={() => showMoveDialog = false}>
+                    <i class="material-icons">close</i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Выберите папку назначения:</p>
+
+                {#if isFoldersLoading}
+                    <div class="folder-loading">
+                        <div class="spinner small"></div>
+                        <span>Загрузка папок...</span>
+                    </div>
+                {:else}
+                    <div class="folder-list">
+                        <div class="folder-item {targetFolderId === 0 ? 'selected' : ''}"
+                             on:click={() => targetFolderId = 0}>
+                            <i class="material-icons">cloud</i>
+                            <span>Корневая папка</span>
+                        </div>
+
+                        {#each $allFolders as folder}
+                            <div class="folder-item {targetFolderId === folder.folder_id ? 'selected' : ''}"
+                                 on:click={() => targetFolderId = folder.folder_id}>
+                                <i class="material-icons">folder</i>
+                                <span>{folder.folder_name}</span>
+                            </div>
+
+                            {#if folder.subFolders && folder.subFolders.length > 0}
+                                {#each folder.subFolders as subFolder}
+                                    <div class="folder-item subfolder {targetFolderId === subFolder.folder_id ? 'selected' : ''}"
+                                         on:click={() => targetFolderId = subFolder.folder_id}>
+                                        <i class="material-icons">subdirectory_arrow_right</i>
+                                        <i class="material-icons">folder</i>
+                                        <span>{subFolder.folder_name}</span>
+                                    </div>
+                                {/each}
+                            {/if}
+                        {/each}
+                    </div>
+                {/if}
+            </div>
+            <div class="modal-footer">
+                <button class="button secondary" on:click={() => showMoveDialog = false}>Отмена</button>
+                <button class="button primary" on:click={handleMove} disabled={isFoldersLoading}>Переместить</button>
+            </div>
+        </div>
+    </div>
+{/if}
 
 <!-- Модальное окно для создания новой папки -->
 {#if showNewFolderDialog}
@@ -1242,6 +1390,57 @@
 
     .file-item .item-type-icon {
         color: #4285f4;
+    }
+
+    .folder-list {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid var(--border-color, #e0e0e0);
+        border-radius: 4px;
+        margin-top: 12px;
+    }
+
+    .folder-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 12px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+    }
+
+    .folder-item:last-child {
+        border-bottom: none;
+    }
+
+    .folder-item:hover {
+        background-color: var(--hover-bg, #f1f3f4);
+    }
+
+    .folder-item.selected {
+        background-color: rgba(26, 115, 232, 0.08);
+    }
+
+    .folder-item i {
+        margin-right: 8px;
+        color: #fbc02d;
+    }
+
+    .folder-item.subfolder {
+        padding-left: 36px;
+    }
+
+    .folder-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 24px;
+    }
+
+    .spinner.small {
+        width: 24px;
+        height: 24px;
+        margin-bottom: 12px;
     }
 
     /* Модальные окна */
