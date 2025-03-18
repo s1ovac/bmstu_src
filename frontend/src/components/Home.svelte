@@ -90,25 +90,25 @@
                 <h3>Хранилище</h3>
                 <ul class="nav-items">
                     <li class="nav-item active">
-                        <a href="#" class="nav-link">
+                        <a href="/" class="nav-link">
                             <i class="material-icons">cloud</i>
                             <span>Мой диск</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                        <a href="/" class="nav-link">
                             <i class="material-icons">star</i>
                             <span>Избранное</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                        <a href="/" class="nav-link">
                             <i class="material-icons">access_time</i>
                             <span>Недавние</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                        <a href="/" class="nav-link">
                             <i class="material-icons">delete</i>
                             <span>Корзина</span>
                         </a>
@@ -128,7 +128,7 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="#" class="nav-link">
+                            <a href="/admin" class="nav-link">
                                 <i class="material-icons">group</i>
                                 <span>Пользователи</span>
                             </a>
@@ -148,7 +148,7 @@
                         </button>
                     </li>
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                        <a href="/" class="nav-link">
                             <i class="material-icons">settings</i>
                             <span>Настройки</span>
                         </a>
