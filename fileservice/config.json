@@ -35,5 +35,11 @@
     "jwt": {
         "private_key_path": "../keys/private.pem",
         "public_key_path": "../keys/public.pem"
+    },
+    "auth_service_url": "http://localhost:8082",
+    "service_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhdXRoLXNlcnZpY2UiLCJzdWIiOiJmaWxlc2VydmljZSIsImlhdCI6MTYxMDAwMDAwMCwiZXhwIjoxOTAwMDAwMDAwfQ.signature",
+    "service_auth": {
+        "service_id": "fileservice",
+        "service_secret": "file_service_secret_key"
     }
 }

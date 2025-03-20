@@ -17,6 +17,7 @@ add_executable(auth
         controllers/RoleController.cpp
         controllers/GroupController.cpp
         controllers/AdminController.cpp
+        controllers/PermissionController.cpp
         repository/DB.cpp
         services/AuthService.cpp
         services/AccessControlService.cpp

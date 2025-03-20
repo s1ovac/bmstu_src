@@ -28,3 +28,8 @@ bool AccessControlService::hasPermission(const std::string &user_id, const std::
     }
     return false;
 }
+
+std::vector<std::string> AccessControlService::getUserPermissions(const std::string &user_id)
+{
+    return db_->getUserPermissions(user_id);
+}
