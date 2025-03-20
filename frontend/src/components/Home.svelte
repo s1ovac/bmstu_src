@@ -128,7 +128,7 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="/admin" class="nav-link">
+                            <a href="/admin-dashboard" class="nav-link">
                                 <i class="material-icons">group</i>
                                 <span>Пользователи</span>
                             </a>

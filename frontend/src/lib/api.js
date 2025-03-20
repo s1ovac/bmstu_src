@@ -370,3 +370,91 @@ export const getUserRoles = async (token, userId) => {
 
     return await response.json();
 };
+
+// Получение системной статистики
+export const getSystemStats = async (token) => {
+    try {
+        const response = await fetch(`${FILE_BASE_URL}/api/v1/admin/stats`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Failed to fetch system stats: ${response.status} ${response.statusText}`, errorText);
+            throw new Error('Failed to fetch system statistics');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error in getSystemStats:', error);
+        throw error;
+    }
+};
+
+// Получение содержимого пользователя (файлы и папки)
+export const getUserContent = async (token, userId) => {
+    try {
+        const response = await fetch(`${FILE_BASE_URL}/api/v1/admin/users/${userId}/content`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Failed to fetch user content: ${response.status} ${response.statusText}`, errorText);
+            throw new Error(`Failed to fetch content for user ${userId}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error(`Error in getUserContent for user ${userId}:`, error);
+        throw error;
+    }
+};
+
+// Получение всех файлов в системе
+export const getAllFilesAdmin = async (token) => {
+    try {
+        const response = await fetch(`${FILE_BASE_URL}/api/v1/admin/files`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Failed to fetch all files: ${response.status} ${response.statusText}`, errorText);
+            throw new Error('Failed to fetch all files');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error in getAllFilesAdmin:', error);
+        throw error;
+    }
+};
+
+// Получение всех папок в системе
+export const getAllFoldersAdmin = async (token) => {
+    try {
+        const response = await fetch(`${FILE_BASE_URL}/api/v1/admin/folders`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Failed to fetch all folders: ${response.status} ${response.statusText}`, errorText);
+            throw new Error('Failed to fetch all folders');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error in getAllFoldersAdmin:', error);
+        throw error;
+    }
+};
