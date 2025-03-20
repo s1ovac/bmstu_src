@@ -25,6 +25,4 @@ private:
 
     // Helper methods for permission checks
     bool checkAdminPermission(const HttpRequestPtr &req, FilterCallback &fcb);
-    bool checkReadPermission(const HttpRequestPtr &req, FilterCallback &fcb);
-    bool checkWritePermission(const HttpRequestPtr &req, FilterCallback &fcb);
 };

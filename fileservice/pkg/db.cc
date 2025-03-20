@@ -748,3 +748,326 @@ bool DB::moveFiles(const std::string& user_id, const std::vector<int>& file_ids,
 
     return true;
 }
+
+// Get all users with their IDs and emails
+std::vector<std::tuple<int, std::string, std::string>> DB::getAllUsers()
+{
+    std::vector<std::tuple<int, std::string, std::string>> users;
+    if (!conn_) return users;
+
+    std::string query = R"(
+        SELECT user_id, email, created_at
+        FROM users
+        ORDER BY user_id;
+    )";
+
+    PGresult* res = PQexec(conn_, query.c_str());
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get all users: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return users;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        int user_id = std::stoi(PQgetvalue(res, i, 0));
+        std::string email = PQgetvalue(res, i, 1);
+        std::string created_at = PQgetvalue(res, i, 2);
+
+        users.emplace_back(user_id, email, created_at);
+    }
+
+    PQclear(res);
+    return users;
+}
+
+// Get all files from all users
+std::vector<std::tuple<int, std::string, int, std::string, int, std::string>> DB::getAllFilesAdmin()
+{
+    std::vector<std::tuple<int, std::string, int, std::string, int, std::string>> files;
+    if (!conn_) return files;
+
+    // Query to get all files with user information
+    std::string query = R"(
+        SELECT f.file_id, f.file_name, f.file_size, COALESCE(f.folder_id, 0) as folder_id,
+               f.user_id, u.email, f.created_at
+        FROM files f
+        JOIN users u ON f.user_id = u.user_id
+        ORDER BY f.user_id, f.file_id;
+    )";
+
+    PGresult* res = PQexec(conn_, query.c_str());
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get all files: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return files;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        int file_id = std::stoi(PQgetvalue(res, i, 0));
+        std::string file_name = PQgetvalue(res, i, 1);
+        int file_size = std::stoi(PQgetvalue(res, i, 2));
+        int folder_id = std::stoi(PQgetvalue(res, i, 3));
+        int user_id = std::stoi(PQgetvalue(res, i, 4));
+        std::string email = PQgetvalue(res, i, 5);
+        std::string created_at = PQgetvalue(res, i, 6);
+
+        files.emplace_back(file_id, file_name, file_size, created_at, user_id, email);
+    }
+
+    PQclear(res);
+    return files;
+}
+
+// Get all folders from all users
+std::vector<std::tuple<int, std::string, int, std::string, int, std::string>> DB::getAllFoldersAdmin()
+{
+    std::vector<std::tuple<int, std::string, int, std::string, int, std::string>> folders;
+    if (!conn_) return folders;
+
+    // Query to get all folders with user information
+    std::string query = R"(
+        SELECT f.folder_id, f.folder_name, COALESCE(f.parent_folder_id, 0) as parent_folder_id,
+               f.user_id, u.email, f.created_at
+        FROM folders f
+        JOIN users u ON f.user_id = u.user_id
+        ORDER BY f.user_id, f.folder_id;
+    )";
+
+    PGresult* res = PQexec(conn_, query.c_str());
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get all folders: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return folders;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        int folder_id = std::stoi(PQgetvalue(res, i, 0));
+        std::string folder_name = PQgetvalue(res, i, 1);
+
+        bool is_parent_null = PQgetisnull(res, i, 2);
+        int parent_folder_id = is_parent_null ? 0 : std::stoi(PQgetvalue(res, i, 2));
+
+        int user_id = std::stoi(PQgetvalue(res, i, 3));
+        std::string email = PQgetvalue(res, i, 4);
+        std::string created_at = PQgetvalue(res, i, 5);
+
+        folders.emplace_back(folder_id, folder_name, parent_folder_id, created_at, user_id, email);
+    }
+
+    PQclear(res);
+    return folders;
+}
+
+// Get files for a specific user (admin view)
+std::vector<std::tuple<int, std::string, int, std::string>> DB::getFilesForUser(const std::string& user_id)
+{
+    std::vector<std::tuple<int, std::string, int, std::string>> files;
+    if (!conn_) return files;
+
+    // Query to get all files for the specified user
+    std::string query = R"(
+        SELECT file_id, file_name, file_size, COALESCE(folder_id, 0) as folder_id, created_at
+        FROM files
+        WHERE user_id = $1
+        ORDER BY file_id;
+    )";
+
+    const char* paramValues[1] = { user_id.c_str() };
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 1, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get files for user " << user_id << ": " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return files;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        int file_id = std::stoi(PQgetvalue(res, i, 0));
+        std::string file_name = PQgetvalue(res, i, 1);
+        int file_size = std::stoi(PQgetvalue(res, i, 2));
+        int folder_id = std::stoi(PQgetvalue(res, i, 3));
+        std::string created_at = PQgetvalue(res, i, 4);
+
+        files.emplace_back(file_id, file_name, file_size, created_at);
+    }
+
+    PQclear(res);
+    return files;
+}
+
+// Get folders for a specific user (admin view)
+std::vector<std::tuple<int, std::string, int, std::string>> DB::getFoldersForUser(const std::string& user_id)
+{
+    std::vector<std::tuple<int, std::string, int, std::string>> folders;
+    if (!conn_) return folders;
+
+    // Query to get all folders for the specified user
+    std::string query = R"(
+        SELECT folder_id, folder_name, COALESCE(parent_folder_id, 0) as parent_folder_id, created_at
+        FROM folders
+        WHERE user_id = $1
+        ORDER BY folder_id;
+    )";
+
+    const char* paramValues[1] = { user_id.c_str() };
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 1, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get folders for user " << user_id << ": " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return folders;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        int folder_id = std::stoi(PQgetvalue(res, i, 0));
+        std::string folder_name = PQgetvalue(res, i, 1);
+
+        bool is_parent_null = PQgetisnull(res, i, 2);
+        int parent_folder_id = is_parent_null ? 0 : std::stoi(PQgetvalue(res, i, 2));
+
+        std::string created_at = PQgetvalue(res, i, 3);
+
+        folders.emplace_back(folder_id, folder_name, parent_folder_id, created_at);
+    }
+
+    PQclear(res);
+    return folders;
+}
+
+// Get system statistics: total_users, total_files, total_folders, total_storage_bytes
+std::tuple<int, int, int, long long> DB::getSystemStats()
+{
+    int total_users = 0;
+    int total_files = 0;
+    int total_folders = 0;
+    long long total_storage_bytes = 0;
+
+    if (!conn_) return std::make_tuple(0, 0, 0, 0);
+
+    // Get total users count
+    std::string userCountQuery = "SELECT COUNT(*) FROM users;";
+    PGresult* userCountRes = PQexec(conn_, userCountQuery.c_str());
+    if (PQresultStatus(userCountRes) == PGRES_TUPLES_OK && PQntuples(userCountRes) > 0) {
+        total_users = std::stoi(PQgetvalue(userCountRes, 0, 0));
+    }
+    PQclear(userCountRes);
+
+    // Get total files count and storage size
+    std::string fileStatsQuery = "SELECT COUNT(*), COALESCE(SUM(file_size), 0) FROM files;";
+    PGresult* fileStatsRes = PQexec(conn_, fileStatsQuery.c_str());
+    if (PQresultStatus(fileStatsRes) == PGRES_TUPLES_OK && PQntuples(fileStatsRes) > 0) {
+        total_files = std::stoi(PQgetvalue(fileStatsRes, 0, 0));
+        total_storage_bytes = std::stoll(PQgetvalue(fileStatsRes, 0, 1));
+    }
+    PQclear(fileStatsRes);
+
+    // Get total folders count
+    std::string folderCountQuery = "SELECT COUNT(*) FROM folders;";
+    PGresult* folderCountRes = PQexec(conn_, folderCountQuery.c_str());
+    if (PQresultStatus(folderCountRes) == PGRES_TUPLES_OK && PQntuples(folderCountRes) > 0) {
+        total_folders = std::stoi(PQgetvalue(folderCountRes, 0, 0));
+    }
+    PQclear(folderCountRes);
+
+    return std::make_tuple(total_users, total_files, total_folders, total_storage_bytes);
+}
+
+// Get file type distribution (for admin dashboard)
+std::vector<std::pair<std::string, int>> DB::getFileTypeDistribution()
+{
+    std::vector<std::pair<std::string, int>> distribution;
+    if (!conn_) return distribution;
+
+    // Query to get file extension distribution
+    std::string query = R"(
+        SELECT
+            CASE
+                WHEN RIGHT(file_name, POSITION('.' IN REVERSE(file_name))) = '' THEN 'no_extension'
+                ELSE LOWER(RIGHT(file_name, POSITION('.' IN REVERSE(file_name)) - 1))
+            END AS extension,
+            COUNT(*) as count
+        FROM files
+        GROUP BY extension
+        ORDER BY count DESC
+        LIMIT 10;
+    )";
+
+    PGresult* res = PQexec(conn_, query.c_str());
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get file type distribution: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return distribution;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        std::string extension = PQgetvalue(res, i, 0);
+        int count = std::stoi(PQgetvalue(res, i, 1));
+        distribution.emplace_back(extension, count);
+    }
+
+    PQclear(res);
+    return distribution;
+}
+
+// Get top users by storage usage
+std::vector<std::tuple<std::string, std::string, long long>> DB::getTopUsersByStorage(int limit)
+{
+    std::vector<std::tuple<std::string, std::string, long long>> topUsers;
+    if (!conn_) return topUsers;
+
+    // Build query with the requested limit
+    std::string query = R"(
+        SELECT
+            u.user_id,
+            u.email,
+            COALESCE(SUM(f.file_size), 0) as total_storage
+        FROM
+            users u
+        LEFT JOIN
+            files f ON u.user_id = f.user_id
+        GROUP BY
+            u.user_id, u.email
+        ORDER BY
+            total_storage DESC
+        LIMIT
+    )" + std::to_string(limit) + ";";
+
+    PGresult* res = PQexec(conn_, query.c_str());
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get top users by storage: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return topUsers;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        std::string userId = PQgetvalue(res, i, 0);
+        std::string email = PQgetvalue(res, i, 1);
+        long long storageBytes = std::stoll(PQgetvalue(res, i, 2));
+
+        topUsers.emplace_back(userId, email, storageBytes);
+    }
+
+    PQclear(res);
+    return topUsers;
+}

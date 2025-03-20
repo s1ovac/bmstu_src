@@ -37,7 +37,7 @@
         "public_key_path": "../keys/public.pem"
     },
     "auth_service_url": "http://localhost:8082",
-    "service_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhdXRoLXNlcnZpY2UiLCJzdWIiOiJmaWxlc2VydmljZSIsImlhdCI6MTYxMDAwMDAwMCwiZXhwIjoxOTAwMDAwMDAwfQ.signature",
+    "service_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDI1NTQwODYsImlhdCI6MTc0MjQ2NzY4NiwiaXNzIjoiYXV0aC1zZXJ2aWNlIiwic3ViIjoiMSJ9.NHI27-PpjsOn9IwsPR7Y48DabOppce4_j-d6qzvYw34sgeqT_5CuKudvzEyvVAM3RWvhCI7dnBOMKITch-guAdcViDTePGyjcNOz3ScWKP4A1SuzPAZ5v101-JYJ-P5v8g5uMs2yeB4GwkhhOY-RMLk68x_fGcb4caJw-a4xwuxfOn0ECs9rOjXsBr-33TLQIZIdmnc6lbP1lcPB0krUqHtai8pBYVab-4HgJc6NMvC3PE-7-sYsrMuBumYCY1VwYdvEukUf-lCg3Ld_EGyc28FK0ObuQwghijTWO_3hr1zhG0UDNhpn_ij_YUw-di2lywrmllUbqKK6H-Hkb_6p8w",
     "service_auth": {
         "service_id": "fileservice",
         "service_secret": "file_service_secret_key"

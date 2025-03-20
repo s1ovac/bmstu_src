@@ -3,6 +3,9 @@
 #include <ctime>
 #include <memory>
 
+const std::string AUTH_SERVICE_URL = "http://localhost:8082";
+const std::string AUTH_TOKEN = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDI1NTQwODYsImlhdCI6MTc0MjQ2NzY4NiwiaXNzIjoiYXV0aC1zZXJ2aWNlIiwic3ViIjoiMSJ9.NHI27-PpjsOn9IwsPR7Y48DabOppce4_j-d6qzvYw34sgeqT_5CuKudvzEyvVAM3RWvhCI7dnBOMKITch-guAdcViDTePGyjcNOz3ScWKP4A1SuzPAZ5v101-JYJ-P5v8g5uMs2yeB4GwkhhOY-RMLk68x_fGcb4caJw-a4xwuxfOn0ECs9rOjXsBr-33TLQIZIdmnc6lbP1lcPB0krUqHtai8pBYVab-4HgJc6NMvC3PE-7-sYsrMuBumYCY1VwYdvEukUf-lCg3Ld_EGyc28FK0ObuQwghijTWO_3hr1zhG0UDNhpn_ij_YUw-di2lywrmllUbqKK6H-Hkb_6p8w";
+
 std::shared_ptr<PermissionUtils> PermissionUtils::instance()
 {
     static std::shared_ptr<PermissionUtils> instance(new PermissionUtils());
@@ -78,8 +81,6 @@ bool PermissionUtils::fetchUserPermissions(const std::string& userId, bool force
         }
     }
 
-    const std::string AUTH_SERVICE_URL = drogon::app().getCustomConfig()["auth_service_url"].asString();
-
     // Use the member variable for auth service URL
     const std::string endpoint = AUTH_SERVICE_URL + "/api/v1/users/" + userId + "/permissions";
 
@@ -88,12 +89,7 @@ bool PermissionUtils::fetchUserPermissions(const std::string& userId, bool force
     auto req = drogon::HttpRequest::newHttpRequest();
     req->setMethod(drogon::Get);
     req->setPath("/api/v1/users/" + userId + "/permissions");
-
-    // Add authorization header with service token
-    std::string serviceToken = drogon::app().getCustomConfig()["service_token"].asString();
-    if (!serviceToken.empty()) {
-        req->addHeader("Authorization", "Bearer " + serviceToken);
-    }
+    req->addHeader("Authorization", "Bearer " + AUTH_TOKEN);
 
     LOG_INFO << "Fetching permissions for user " << userId << " from auth service with 5s timeout";
 
@@ -127,7 +123,7 @@ bool PermissionUtils::fetchUserPermissions(const std::string& userId, bool force
                 std::lock_guard<std::mutex> lock(cacheMutex_);
                 permissionCache_[userId] = std::move(permissions);
 
-                LOG_INFO << "Cached " << permissions.size() << " permissions for user " << userId;
+                LOG_INFO << "Cached " << permArray.size() << " permissions for user " << userId;
                 return true;
             }
             LOG_ERROR << "Invalid JSON structure in permissions response for user " << userId;

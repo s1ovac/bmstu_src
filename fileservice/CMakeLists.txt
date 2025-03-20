@@ -18,9 +18,11 @@ add_executable(fileservice
         main.cc
         pkg/db.cc
         controllers/FileController.cc
+        controllers/AdminController.cpp
         filters/JwtAuthFilter.cc
         filters/PermissionFilter.cpp
         services/FileService.cc
+        services/AdminService.cpp
         pkg/jwt_utils.cpp
         pkg/permission_utils.cpp
         # Добавьте другие файлы при необходимости

@@ -27,48 +27,8 @@ void PermissionFilter::doFilter(const HttpRequestPtr &req, FilterCallback &&fcb,
 
         // Check if this is an admin endpoint
         if (path.find("/api/v1/admin") == 0) {
-            // Check if user has manage_files permission
-            if (!permissionUtils_->hasPermission(userId, "manage_files")) {
-                LOG_WARN << "User " << userId << " does not have required admin permissions";
-                auto resp = HttpResponse::newHttpResponse();
-                resp->setStatusCode(k403Forbidden);
-                resp->setBody("Forbidden - Admin permission required");
-                fcb(resp);
-                return;
-            }
-
-            // Store the permission check result in the request attributes
-            req->attributes()->insert("has_admin_permission", true);
-            LOG_INFO << "User " << userId << " has admin permissions, proceeding";
-        }
-
-            // Check if this is a file endpoint that requires read/write permissions
-        else if (path.find("/api/v1/files") == 0 || path.find("/api/v1/folders") == 0) {
-            // For file operations, we would check for different permissions
-            // based on the HTTP method (GET, POST, PUT, DELETE)
-            if (req->method() == drogon::Get) {
-                // Read operations require read permission
-                if (!permissionUtils_->hasPermission(userId, "read_files")) {
-                    LOG_WARN << "User " << userId << " does not have required read_files permission";
-                    auto resp = HttpResponse::newHttpResponse();
-                    resp->setStatusCode(k403Forbidden);
-                    resp->setBody("Forbidden - Read permission required");
-                    fcb(resp);
-                    return;
-                }
-            }
-            else if (req->method() == drogon::Post ||
-                     req->method() == drogon::Put ||
-                     req->method() == drogon::Delete) {
-                // Write operations require write permission
-                if (!permissionUtils_->hasPermission(userId, "write_files")) {
-                    LOG_WARN << "User " << userId << " does not have required write_files permission";
-                    auto resp = HttpResponse::newHttpResponse();
-                    resp->setStatusCode(k403Forbidden);
-                    resp->setBody("Forbidden - Write permission required");
-                    fcb(resp);
-                    return;
-                }
+            if (!checkAdminPermission(req, fcb)) {
+                return;  // Permission check failed
             }
         }
 
@@ -83,4 +43,24 @@ void PermissionFilter::doFilter(const HttpRequestPtr &req, FilterCallback &&fcb,
         resp->setBody("Internal server error");
         fcb(resp);
     }
+}
+
+bool PermissionFilter::checkAdminPermission(const HttpRequestPtr &req, FilterCallback &fcb)
+{
+    std::string userId = req->attributes()->get<std::string>("user_id");
+
+    // Check if user has manage_files permission
+    if (!permissionUtils_->hasPermission(userId, "manage_files")) {
+        LOG_WARN << "User " << userId << " does not have required admin permissions";
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setStatusCode(k403Forbidden);
+        resp->setBody("Forbidden - Admin permission required");
+        fcb(resp);
+        return false;
+    }
+
+    // Store the permission check result in the request attributes
+    req->attributes()->insert("has_admin_permission", true);
+    LOG_INFO << "User " << userId << " has admin permissions, proceeding";
+    return true;
 }

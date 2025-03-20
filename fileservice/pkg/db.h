@@ -34,6 +34,18 @@ public:
     bool createFolder(const std::string& user_id, const std::string& folder_name, int parent_folder_id = -1);
     bool deleteFolder(const std::string& user_id, int folder_id);
 
+    // Admin methods
+    std::vector<std::tuple<int, std::string, std::string>> getAllUsers();
+    std::vector<std::tuple<int, std::string, int, std::string, int, std::string>> getAllFilesAdmin();
+    std::vector<std::tuple<int, std::string, int, std::string, int, std::string>> getAllFoldersAdmin();
+    std::vector<std::tuple<int, std::string, int, std::string>> getFilesForUser(const std::string& user_id);
+    std::vector<std::tuple<int, std::string, int, std::string>> getFoldersForUser(const std::string& user_id);
+
+    // System statistics
+    std::tuple<int, int, int, long long> getSystemStats();
+    std::vector<std::pair<std::string, int>> getFileTypeDistribution();
+    std::vector<std::tuple<std::string, std::string, long long>> getTopUsersByStorage(int limit = 5);
+
 private:
     // Приватный конструктор
     DB(const std::string& host, const std::string& port,
