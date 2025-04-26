@@ -60,3 +60,23 @@ std::vector<std::string> AuthService::getUserRoles(const std::string& userId)
 {
     return db_->getUserRoles(userId);
 }
+
+bool AuthService::changePassword(const std::string &userId, const std::string &currentPassword,
+                                 const std::string &newPassword) {
+    auto [_, stored_hash, status] = db_->getPasswordHashByLogin(userId);
+
+    if (status == UserFetchStatus::UserNotFound)
+    {
+        return false;
+    }
+
+    bool password_valid = BCrypt::validatePassword(currentPassword, stored_hash);
+    if (!password_valid)
+    {
+        return false;
+    }
+
+    std::string new_password_hash = BCrypt::generateHash(newPassword);
+    
+    return db_->updatePasswordHash(userId, new_password_hash);
+}

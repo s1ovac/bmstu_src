@@ -12,6 +12,7 @@ public:
     METHOD_LIST_BEGIN
         ADD_METHOD_TO(AuthController::login, "/api/v1/login", Post);
         ADD_METHOD_TO(AuthController::signup, "/api/v1/signup", Post);
+        ADD_METHOD_TO(AuthController::changePassword, "/api/v1/change-password", Post, "JwtAuthFilter");
     METHOD_LIST_END
 
     AuthController();
@@ -20,6 +21,9 @@ public:
                std::function<void(const drogon::HttpResponsePtr&)>&& callback);
 
     void signup(const drogon::HttpRequestPtr& req,
+                std::function<void(const drogon::HttpResponsePtr&)>&& callback);
+
+    void changePassword(const drogon::HttpRequestPtr& req,
                 std::function<void(const drogon::HttpResponsePtr&)>&& callback);
 private:
     std::shared_ptr<AuthService> authService_;

@@ -127,3 +127,81 @@ void AuthController::signup(const drogon::HttpRequestPtr& req, std::function<voi
     }
 }
 
+void AuthController::changePassword(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback)
+{
+    LOG_INFO << "Password change attempt received";
+
+    std::string userId = req->attributes()->get<std::string>("user_id");
+
+    auto json = req->getJsonObject();
+
+    if (!json || !json->isMember("currentPassword") || !json->isMember("newPassword"))
+    {
+        LOG_WARN << "Invalid input received for password change";
+        Json::Value jsonResponse;
+        jsonResponse["error"] = "Invalid input. Required fields: currentPassword, newPassword";
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(jsonResponse);
+        resp->setStatusCode(drogon::k400BadRequest);
+        callback(resp);
+        return;
+    }
+
+    auto currentPassword = (*json)["currentPassword"].asString();
+    auto newPassword = (*json)["newPassword"].asString();
+
+    if (currentPassword.empty() || newPassword.empty())
+    {
+        LOG_WARN << "Empty passwords received for change";
+        Json::Value jsonResponse;
+        jsonResponse["error"] = "Passwords cannot be empty";
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(jsonResponse);
+        resp->setStatusCode(drogon::k400BadRequest);
+        callback(resp);
+        return;
+    }
+
+    if (newPassword.length() < 6)
+    {
+        LOG_WARN << "New password too short (min 6 characters)";
+        Json::Value jsonResponse;
+        jsonResponse["error"] = "New password is too short. Minimum 6 characters required";
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(jsonResponse);
+        resp->setStatusCode(drogon::k400BadRequest);
+        callback(resp);
+        return;
+    }
+
+    try
+    {
+        LOG_INFO << "Changing password for user: " << userId;
+
+        bool success = authService_->changePassword(userId, currentPassword, newPassword);
+
+        if (success)
+        {
+            LOG_INFO << "Password change successful for user: " << userId;
+            Json::Value jsonResponse;
+            jsonResponse["message"] = "Password changed successfully";
+            auto resp = drogon::HttpResponse::newHttpJsonResponse(jsonResponse);
+            callback(resp);
+        }
+        else
+        {
+            LOG_WARN << "Invalid current password for user: " << userId;
+            Json::Value jsonResponse;
+            jsonResponse["error"] = "Invalid current password";
+            auto resp = drogon::HttpResponse::newHttpJsonResponse(jsonResponse);
+            resp->setStatusCode(drogon::k401Unauthorized);
+            callback(resp);
+        }
+    }
+    catch(const std::exception& e)
+    {
+        LOG_ERROR << "Password change failed with error: " << e.what();
+        Json::Value jsonResponse;
+        jsonResponse["error"] = "Internal server error";
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(jsonResponse);
+        resp->setStatusCode(drogon::k500InternalServerError);
+        callback(resp);
+    }
+}

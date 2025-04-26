@@ -12,6 +12,8 @@ public:
     bool signup(const std::string& login, const std::string& password);
     std::vector<std::string> getUserRoles(const std::string& userId);
 
+    bool changePassword(const std::string& userId, const std::string& currentPassword, const std::string& newPassword);
+
 private:
     AuthService();
     std::shared_ptr<DB> db_;

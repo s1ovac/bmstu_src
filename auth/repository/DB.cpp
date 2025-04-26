@@ -799,3 +799,31 @@ std::vector<std::pair<int, std::string>> DB::getAllGroups()
     PQclear(res);
     return result;
 }
+
+bool DB::updatePasswordHash(const std::string& userId, const std::string& newPasswordHash)
+{
+    if (!conn_) return false;
+
+    std::string query = "UPDATE users SET password_hash = $1 WHERE user_id = $2;";
+    const char* paramValues[2];
+    paramValues[0] = newPasswordHash.c_str();
+    paramValues[1] = userId.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 2, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to update password: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return false;
+    }
+
+    if (strcmp(PQcmdTuples(res), "0") == 0)
+    {
+        PQclear(res);
+        return false;
+    }
+
+    PQclear(res);
+    return true;
+}

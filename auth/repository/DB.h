@@ -32,10 +32,10 @@ public:
     ~DB();
 
     bool init();
-    PGconn* getConnection();
 
     std::tuple<std::string, std::string, UserFetchStatus> getPasswordHashByLogin(const std::string& login);
     CreateUserStatus createUser(const std::string& login, const std::string& password_hash);
+    bool updatePasswordHash(const std::string& userId, const std::string& newPasswordHash);
 
     // User roles and permissions
     std::vector<std::string> getUserRoles(const std::string& userId);
