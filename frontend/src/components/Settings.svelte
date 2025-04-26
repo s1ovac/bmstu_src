@@ -250,7 +250,9 @@
                         class="nav-item {activeTab === 'appearance' ? 'active' : ''}"
                         on:click={() => switchTab('appearance')}
                 >
-                    <i class="material-icons">palette</i>
+                    <div class="nav-item-icon">
+                        <i class="material-icons">palette</i>
+                    </div>
                     <span>Внешний вид</span>
                 </button>
 
@@ -258,7 +260,9 @@
                         class="nav-item {activeTab === 'security' ? 'active' : ''}"
                         on:click={() => switchTab('security')}
                 >
-                    <i class="material-icons">security</i>
+                    <div class="nav-item-icon">
+                        <i class="material-icons">security</i>
+                    </div>
                     <span>Безопасность</span>
                 </button>
 
@@ -266,7 +270,9 @@
                         class="nav-item {activeTab === 'notifications' ? 'active' : ''}"
                         on:click={() => switchTab('notifications')}
                 >
-                    <i class="material-icons">notifications</i>
+                    <div class="nav-item-icon">
+                        <i class="material-icons">notifications</i>
+                    </div>
                     <span>Уведомления</span>
                 </button>
 
@@ -274,7 +280,9 @@
                         class="nav-item {activeTab === 'profile' ? 'active' : ''}"
                         on:click={() => switchTab('profile')}
                 >
-                    <i class="material-icons">person</i>
+                    <div class="nav-item-icon">
+                        <i class="material-icons">person</i>
+                    </div>
                     <span>Профиль</span>
                 </button>
             </div>
@@ -431,15 +439,9 @@
                             <button
                                     class="change-password-button"
                                     on:click={handlePasswordChange}
-                                    disabled={isChangingPassword}
                             >
-                                {#if isChangingPassword}
-                                    <div class="button-spinner"></div>
-                                    <span>Изменение пароля...</span>
-                                {:else}
-                                    <i class="material-icons">save</i>
-                                    <span>Изменить пароль</span>
-                                {/if}
+                                <i class="material-icons">save</i>
+                                <span>Изменить пароль</span>
                             </button>
                         </div>
                     </div>
@@ -623,28 +625,30 @@
 <style>
     /* Импорт шрифтов */
     @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
-    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-    /* Темы */
+    /* Переменные для светлой темы */
     .light-theme {
         --bg-primary: #ffffff;
-        --bg-secondary: #f5f8fa;
-        --bg-tertiary: #eef2f6;
-        --text-primary: #202124;
-        --text-secondary: #5f6368;
+        --bg-secondary: #f8f9fb;
+        --bg-tertiary: #f0f2f5;
+        --text-primary: #1a202c;
+        --text-secondary: #4a5568;
+        --text-tertiary: #718096;
         --accent-color: #1a73e8;
         --accent-hover: #1765cc;
         --accent-light: rgba(26, 115, 232, 0.1);
-        --border-color: #dadce0;
-        --hover-bg: #f1f3f4;
-        --shadow-color: rgba(0, 0, 0, 0.1);
+        --accent-gradient: #1a73e8;
+        --border-color: #e2e8f0;
+        --hover-bg: #f7fafc;
+        --hover-transition: background-color 0.3s ease;
         --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
         --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
         --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        --success-color: #0f9d58;
-        --success-bg: rgba(15, 157, 88, 0.1);
-        --error-color: #d93025;
-        --error-bg: rgba(217, 48, 37, 0.1);
+        --success-color: #10b981;
+        --success-bg: rgba(16, 185, 129, 0.1);
+        --error-color: #ef4444;
+        --error-bg: rgba(239, 68, 68, 0.1);
         --card-border-radius: 16px;
         --button-border-radius: 8px;
         --input-border-radius: 8px;
@@ -701,9 +705,10 @@
     .settings-header {
         display: flex;
         align-items: center;
-        padding: 16px 24px;
+        padding: 20px 24px;
         background-color: var(--bg-primary);
         border-bottom: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
         position: sticky;
         top: 0;
         z-index: 100;
@@ -721,19 +726,22 @@
     .back-button {
         display: flex;
         align-items: center;
-        background: transparent;
+        background: var(--bg-secondary);
         border: none;
         color: var(--text-primary);
         padding: 10px 16px;
         border-radius: var(--button-border-radius);
         cursor: pointer;
-        font-size: 16px;
+        font-size: 15px;
         font-weight: 500;
         transition: var(--transition-all);
+        box-shadow: var(--shadow-sm);
     }
 
     .back-button:hover {
         background-color: var(--hover-bg);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
     }
 
     .back-button i {
@@ -815,8 +823,10 @@
     /* Навигация */
     .settings-nav {
         width: 280px;
-        background-color: var(--bg-secondary);
+        background-color: var(--bg-primary);
+        border-right: 1px solid var(--border-color);
         padding: 24px 0;
+        box-shadow: var(--shadow-sm);
         z-index: 90;
         transition: var(--transition-all);
     }
@@ -839,7 +849,7 @@
         text-align: left;
         cursor: pointer;
         transition: var(--transition-all);
-        border-radius: 8px;
+        border-radius: var(--button-border-radius);
         font-weight: 500;
     }
 
@@ -854,19 +864,25 @@
         font-weight: 600;
     }
 
-    .nav-item.active {
-        background-color: var(--accent-color);
+    .nav-item-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        margin-right: 16px;
+        transition: var(--transition-all);
+        background-color: var(--bg-tertiary);
+    }
+
+    .nav-item.active .nav-item-icon {
+        background: var(--accent-gradient);
         color: white;
     }
 
     .nav-item i {
         font-size: 20px;
-        margin-right: 15px;
-        color: var(--accent-color);
-    }
-
-    .nav-item.active i {
-        color: var(--accent-color);
     }
 
     /* Содержимое настроек */
@@ -882,11 +898,15 @@
 
     .settings-section {
         background-color: var(--bg-primary);
-        border-radius: 16px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border-radius: var(--card-border-radius);
+        box-shadow: var(--shadow-md);
         padding: 30px;
         margin-bottom: 24px;
         transition: var(--transition-all);
+    }
+
+    .settings-section:hover {
+        box-shadow: var(--shadow-lg);
     }
 
     .settings-section h2 {
@@ -940,7 +960,9 @@
     /* Кнопки тем и вид просмотра */
     .theme-control, .view-control {
         display: flex;
-        gap: 10px;
+        background-color: var(--bg-tertiary);
+        border-radius: var(--button-border-radius);
+        padding: 4px;
     }
 
     .theme-button, .view-button {
@@ -948,24 +970,26 @@
         align-items: center;
         justify-content: center;
         padding: 10px 16px;
-        border: 1px solid var(--border-color);
-        background-color: var(--bg-primary);
+        border: none;
+        background-color: transparent;
         color: var(--text-secondary);
-        border-radius: 50px;
+        border-radius: 8px;
+        margin: 0;
         cursor: pointer;
         transition: var(--transition-all);
         font-size: 14px;
         font-weight: 500;
+        flex: 1;
     }
 
     .theme-button:hover, .view-button:hover {
-        background-color: var(--hover-bg);
+        color: var(--text-primary);
     }
 
     .theme-button.active, .view-button.active {
         background-color: var(--accent-color);
         color: white;
-        border-color: var(--accent-color);
+        box-shadow: var(--shadow-sm);
     }
 
     .theme-button i, .view-button i {
@@ -1129,7 +1153,7 @@
         justify-content: center;
         padding: 14px 24px;
         background: var(--accent-gradient);
-        color: black;
+        color: white;
         border: none;
         border-radius: var(--button-border-radius);
         font-size: 15px;
@@ -1342,6 +1366,11 @@
             flex: 1;
         }
 
+        .nav-item-icon {
+            margin-right: 0;
+            margin-bottom: 8px;
+        }
+
         .setting-item {
             flex-direction: column;
         }
@@ -1386,6 +1415,11 @@
         .nav-item {
             flex-direction: row;
             text-align: left;
+        }
+
+        .nav-item-icon {
+            margin-right: 16px;
+            margin-bottom: 0;
         }
 
         .mobile-menu-toggle {
@@ -1459,7 +1493,7 @@
 
     /* Дополнительные стили для кнопок и входов */
     input::placeholder, select, button {
-        font-family: 'Roboto', sans-serif;
+        font-family: 'Inter', sans-serif;
     }
 
     button {
