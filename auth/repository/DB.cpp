@@ -200,6 +200,42 @@ std::tuple<std::string, std::string, UserFetchStatus> DB::getPasswordHashByLogin
     return {userId, hash, status};
 }
 
+std::tuple<std::string, std::string, UserFetchStatus> DB::getPasswordHashByUserID(const std::string& userID)
+{
+    if (!conn_) return {"", "", UserFetchStatus::QueryFailed};
+
+    // Запрашиваем id и password_hash
+    std::string query = "SELECT user_id, password_hash FROM users WHERE user_id = $1;";
+    const char* paramValues[1] = { userID.c_str() };
+
+    PGresult *res = PQexecParams(conn_, query.c_str(), 1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Query failed: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return {"", "", UserFetchStatus::QueryFailed};
+    }
+
+    std::string userId;
+    std::string hash;
+    UserFetchStatus status;
+
+    if (PQntuples(res) > 0)
+    {
+        userId = PQgetvalue(res, 0, 0);
+        hash = PQgetvalue(res, 0, 1);
+        status = UserFetchStatus::Success;
+    }
+    else
+    {
+        status = UserFetchStatus::UserNotFound;
+    }
+
+    PQclear(res);
+    return {userId, hash, status};
+}
+
 CreateUserStatus DB::createUser(const std::string& login, const std::string& password_hash)
 {
     if (!conn_) return CreateUserStatus::QueryFailed;

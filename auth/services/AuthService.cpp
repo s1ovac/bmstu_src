@@ -63,7 +63,7 @@ std::vector<std::string> AuthService::getUserRoles(const std::string& userId)
 
 bool AuthService::changePassword(const std::string &userId, const std::string &currentPassword,
                                  const std::string &newPassword) {
-    auto [_, stored_hash, status] = db_->getPasswordHashByLogin(userId);
+    auto [_, stored_hash, status] = db_->getPasswordHashByUserID(userId);
 
     if (status == UserFetchStatus::UserNotFound)
     {

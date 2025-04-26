@@ -34,6 +34,7 @@ public:
     bool init();
 
     std::tuple<std::string, std::string, UserFetchStatus> getPasswordHashByLogin(const std::string& login);
+    std::tuple<std::string, std::string, UserFetchStatus> getPasswordHashByUserID(const std::string& userID);
     CreateUserStatus createUser(const std::string& login, const std::string& password_hash);
     bool updatePasswordHash(const std::string& userId, const std::string& newPasswordHash);
 
