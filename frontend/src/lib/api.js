@@ -458,3 +458,37 @@ export const getAllFoldersAdmin = async (token) => {
         throw error;
     }
 };
+
+export const changePassword = async (token, currentPassword, newPassword) => {
+    try {
+        const response = await fetch(`${AUTH_BASE_URL}/api/v1/change-password`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                currentPassword,
+                newPassword
+            })
+        });
+
+        if (response.status === 401) {
+            throw new Error("Неверный текущий пароль");
+        }
+
+        if (response.status === 400) {
+            const data = await response.json();
+            throw new Error(data.error || "Некорректные данные");
+        }
+
+        if (!response.ok) {
+            throw new Error("Ошибка при смене пароля");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Password change error:", error);
+        throw error;
+    }
+};

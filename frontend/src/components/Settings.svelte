@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { fade, slide } from 'svelte/transition';
     import { loggedIn, email as emailStore, userRoles } from '../lib/stores.js';
+    import { changePassword as changePasswordApi } from '../lib/api.js';
 
     // Локальные переменные для настроек
     let userEmail = '';
@@ -17,6 +18,7 @@
     let currentPassword = '';
     let newPassword = '';
     let confirmPassword = '';
+    let isChangingPassword = false;
 
     // Переменные для формы
     let successMessage = '';
@@ -113,7 +115,7 @@
     };
 
     // Функция для смены пароля
-    const changePassword = () => {
+    const handlePasswordChange = async () => {
         // Сброс предыдущих сообщений
         passwordChangeSuccess = false;
         passwordChangeError = '';
@@ -139,25 +141,32 @@
             return;
         }
 
-        // Здесь должен быть запрос к API для смены пароля
-        // Пример:
-        /*
         try {
-            await changePasswordApi(userEmail, currentPassword, newPassword);
+            // Получаем JWT токен из localStorage
+            const storedUser = JSON.parse(localStorage.getItem("user"));
+            if (!storedUser || !storedUser.token) {
+                passwordChangeError = "Необходимо авторизоваться";
+                return;
+            }
+
+            // Отображаем индикатор загрузки
+            isChangingPassword = true;
+
+            // Вызываем API для смены пароля
+            await changePasswordApi(storedUser.token, currentPassword, newPassword);
+
+            // Очищаем поля и показываем успех
             passwordChangeSuccess = true;
             currentPassword = '';
             newPassword = '';
             confirmPassword = '';
         } catch (error) {
+            // Отображаем сообщение об ошибке
             passwordChangeError = error.message || "Ошибка при смене пароля";
+        } finally {
+            // Скрываем индикатор загрузки
+            isChangingPassword = false;
         }
-        */
-
-        // В демо-режиме просто показываем успех
-        passwordChangeSuccess = true;
-        currentPassword = '';
-        newPassword = '';
-        confirmPassword = '';
     };
 
     // Функция для отображения сообщения об успехе
@@ -421,10 +430,16 @@
 
                             <button
                                     class="change-password-button"
-                                    on:click={changePassword}
+                                    on:click={handlePasswordChange}
+                                    disabled={isChangingPassword}
                             >
-                                <i class="material-icons">save</i>
-                                <span>Изменить пароль</span>
+                                {#if isChangingPassword}
+                                    <div class="button-spinner"></div>
+                                    <span>Изменение пароля...</span>
+                                {:else}
+                                    <i class="material-icons">save</i>
+                                    <span>Изменить пароль</span>
+                                {/if}
                             </button>
                         </div>
                     </div>
@@ -839,19 +854,7 @@
         font-weight: 600;
     }
 
-    .nav-item-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        margin-right: 16px;
-        transition: var(--transition-all);
-        background-color: var(--bg-tertiary);
-    }
-
-    .nav-item.active .nav-item-icon {
+    .nav-item.active {
         background-color: var(--accent-color);
         color: white;
     }
@@ -1126,7 +1129,7 @@
         justify-content: center;
         padding: 14px 24px;
         background: var(--accent-gradient);
-        color: white;
+        color: black;
         border: none;
         border-radius: var(--button-border-radius);
         font-size: 15px;
@@ -1339,11 +1342,6 @@
             flex: 1;
         }
 
-        .nav-item-icon {
-            margin-right: 0;
-            margin-bottom: 8px;
-        }
-
         .setting-item {
             flex-direction: column;
         }
@@ -1388,11 +1386,6 @@
         .nav-item {
             flex-direction: row;
             text-align: left;
-        }
-
-        .nav-item-icon {
-            margin-right: 16px;
-            margin-bottom: 0;
         }
 
         .mobile-menu-toggle {
