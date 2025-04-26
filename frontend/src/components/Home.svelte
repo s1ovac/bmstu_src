@@ -148,7 +148,7 @@
                         </button>
                     </li>
                     <li class="nav-item">
-                        <a href="/" class="nav-link">
+                        <a href="/settings" class="nav-link">
                             <i class="material-icons">settings</i>
                             <span>Настройки</span>
                         </a>

@@ -5,6 +5,7 @@
     import Signup from "./components/Signup.svelte";
     import Admin from "./components/Admin.svelte";
     import AdminDashboard from "./components/AdminDashboard.svelte";
+    import Settings from './components/Settings.svelte';
 </script>
 
 <Router routes={{
@@ -13,4 +14,5 @@
 	'/signup': Signup,
 	'/admin': Admin,
 	'/admin-dashboard': AdminDashboard,
+	'/settings': Settings,
 }} />
