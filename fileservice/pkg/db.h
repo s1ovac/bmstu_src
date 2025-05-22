@@ -7,6 +7,30 @@
 #include <libpq-fe.h>
 #include <memory>
 
+struct ExtendedFileInfo {
+    int file_id;
+    std::string file_name;
+    int file_size;
+    std::string created_at;
+    std::string file_type; // personal/shared
+    int owner_id;
+    std::string owner_email;
+    int group_id; // 0 если личный файл
+    std::string group_name;
+};
+
+struct ExtendedFolderInfo {
+    int folder_id;
+    std::string folder_name;
+    int parent_folder_id;
+    std::string created_at;
+    std::string folder_type; // personal/shared
+    int owner_id;
+    std::string owner_email;
+    int group_id; // 0 если личная папка
+    std::string group_name;
+};
+
 class DB {
 public:
     // Метод для получения единственного экземпляра (Singleton)
@@ -29,6 +53,17 @@ public:
     std::optional<std::string> getFilePath(const std::string& user_id, int file_id);
     bool moveFile(const std::string& user_id, int file_id, int target_folder_id);
     bool moveFiles(const std::string& user_id, const std::vector<int>& file_ids, int target_folder_id);
+
+    // Методы для работы с групповыми файлами.
+    std::vector<ExtendedFileInfo> getExtendedFiles(const std::string& user_id, int folder_id);
+    std::vector<ExtendedFolderInfo> getExtendedFolders(const std::string& user_id, int parent_folder_id = -1);
+    bool insertSharedFile(const std::string& user_id, int folder_id, const std::string& file_name, int file_size, int group_id);
+    bool createSharedFolder(const std::string& user_id, const std::string& folder_name, int parent_folder_id, int group_id);
+    bool canUserAccessFile(const std::string& user_id, int file_id);
+    bool canUserModifyFile(const std::string& user_id, int file_id);
+    bool canUserAccessFolder(const std::string& user_id, int folder_id);
+    bool canUserModifyFolder(const std::string& user_id, int folder_id);
+    std::vector<int> getUserGroupIds(const std::string& user_id);
 
     std::vector<std::tuple<int, std::string, int, std::string>> getFolders(const std::string& user_id, int parent_folder_id = -1);
     bool createFolder(const std::string& user_id, const std::string& folder_name, int parent_folder_id = -1);

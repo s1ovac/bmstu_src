@@ -93,6 +93,8 @@ bool DB::init()
                 user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
                 parent_folder_id INT,
                 folder_name VARCHAR(255) NOT NULL,
+                folder_type VARCHAR(20) DEFAULT 'personal' CHECK (folder_type IN ('personal', 'shared')),
+                group_id INT REFERENCES groups(group_id) ON DELETE SET NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (parent_folder_id) REFERENCES folders(folder_id) ON DELETE CASCADE
             );
@@ -106,7 +108,8 @@ bool DB::init()
                 folder_id INT NULL REFERENCES folders(folder_id) ON DELETE CASCADE,
                 file_name VARCHAR(255) NOT NULL,
                 file_size INT,
-                file_type VARCHAR(50),
+                file_type VARCHAR(20) DEFAULT 'personal' CHECK (file_type IN ('personal', 'shared')),
+                group_id INT REFERENCES groups(group_id) ON DELETE SET NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         )",
@@ -1070,4 +1073,430 @@ std::vector<std::tuple<std::string, std::string, long long>> DB::getTopUsersBySt
 
     PQclear(res);
     return topUsers;
+}
+
+std::vector<int> DB::getUserGroupIds(const std::string& user_id)
+{
+    std::vector<int> group_ids;
+    if (!conn_) return group_ids;
+
+    std::string query = R"(
+        SELECT ug.group_id
+        FROM user_groups ug
+        WHERE ug.user_id = $1;
+    )";
+
+    const char* paramValues[1] = { user_id.c_str() };
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 1, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get user groups: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return group_ids;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        int group_id = std::stoi(PQgetvalue(res, i, 0));
+        group_ids.push_back(group_id);
+    }
+
+    PQclear(res);
+    return group_ids;
+}
+
+std::vector<ExtendedFileInfo> DB::getExtendedFiles(const std::string& user_id, int folder_id)
+{
+    std::vector<ExtendedFileInfo> files;
+    if (!conn_) return files;
+
+    // Получаем группы пользователя
+    auto user_groups = getUserGroupIds(user_id);
+
+    std::string group_list = "0"; // Всегда включаем 0 для личных файлов
+    for (int group_id : user_groups) {
+        group_list += "," + std::to_string(group_id);
+    }
+
+    std::string query;
+    const char* paramValues[2];
+    paramValues[0] = user_id.c_str();
+
+    if (folder_id == 0)
+    {
+        query = R"(
+            SELECT f.file_id, f.file_name, f.file_size, f.created_at,
+                   COALESCE(f.file_type, 'personal') as file_type,
+                   f.user_id as owner_id, u.email as owner_email,
+                   COALESCE(f.group_id, 0) as group_id,
+                   COALESCE(g.group_name, '') as group_name
+            FROM files f
+            JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN groups g ON f.group_id = g.group_id
+            WHERE f.folder_id IS NULL
+              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"()))
+            ORDER BY f.file_type DESC, f.file_id;
+        )";
+    }
+    else
+    {
+        query = R"(
+            SELECT f.file_id, f.file_name, f.file_size, f.created_at,
+                   COALESCE(f.file_type, 'personal') as file_type,
+                   f.user_id as owner_id, u.email as owner_email,
+                   COALESCE(f.group_id, 0) as group_id,
+                   COALESCE(g.group_name, '') as group_name
+            FROM files f
+            JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN groups g ON f.group_id = g.group_id
+            WHERE f.folder_id = $2
+              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"()))
+            ORDER BY f.file_type DESC, f.file_id;
+        )";
+        std::string folderIdStr = std::to_string(folder_id);
+        paramValues[1] = folderIdStr.c_str();
+    }
+
+    int paramCount = (folder_id == 0) ? 1 : 2;
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), paramCount, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Query failed: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return files;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        ExtendedFileInfo file;
+        file.file_id = std::stoi(PQgetvalue(res, i, 0));
+        file.file_name = PQgetvalue(res, i, 1);
+        file.file_size = std::stoi(PQgetvalue(res, i, 2));
+        file.created_at = PQgetvalue(res, i, 3);
+        file.file_type = PQgetvalue(res, i, 4);
+        file.owner_id = std::stoi(PQgetvalue(res, i, 5));
+        file.owner_email = PQgetvalue(res, i, 6);
+        file.group_id = std::stoi(PQgetvalue(res, i, 7));
+        file.group_name = PQgetvalue(res, i, 8);
+
+        files.push_back(file);
+    }
+
+    PQclear(res);
+    return files;
+}
+
+std::vector<ExtendedFolderInfo> DB::getExtendedFolders(const std::string& user_id, int parent_folder_id)
+{
+    std::vector<ExtendedFolderInfo> folders;
+    if (!conn_) return folders;
+
+    auto user_groups = getUserGroupIds(user_id);
+
+    std::string group_list = "0";
+    for (int group_id : user_groups) {
+        group_list += "," + std::to_string(group_id);
+    }
+
+    std::string query;
+    const char* paramValues[2];
+    paramValues[0] = user_id.c_str();
+
+    if (parent_folder_id == 0)
+    {
+        query = R"(
+            SELECT f.folder_id, f.folder_name, f.parent_folder_id, f.created_at,
+                   COALESCE(f.folder_type, 'personal') as folder_type,
+                   f.user_id as owner_id, u.email as owner_email,
+                   COALESCE(f.group_id, 0) as group_id,
+                   COALESCE(g.group_name, '') as group_name
+            FROM folders f
+            JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN groups g ON f.group_id = g.group_id
+            WHERE f.parent_folder_id IS NULL
+              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"()))
+            ORDER BY f.folder_type DESC, f.folder_id;
+        )";
+    }
+    else
+    {
+        query = R"(
+            SELECT f.folder_id, f.folder_name, f.parent_folder_id, f.created_at,
+                   COALESCE(f.folder_type, 'personal') as folder_type,
+                   f.user_id as owner_id, u.email as owner_email,
+                   COALESCE(f.group_id, 0) as group_id,
+                   COALESCE(g.group_name, '') as group_name
+            FROM folders f
+            JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN groups g ON f.group_id = g.group_id
+            WHERE f.parent_folder_id = $2
+              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"()))
+            ORDER BY f.folder_type DESC, f.folder_id;
+        )";
+        std::string parentIdStr = std::to_string(parent_folder_id);
+        paramValues[1] = parentIdStr.c_str();
+    }
+
+    int paramCount = (parent_folder_id == 0) ? 1 : 2;
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), paramCount, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get folders: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return folders;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        ExtendedFolderInfo folder;
+        folder.folder_id = std::stoi(PQgetvalue(res, i, 0));
+        folder.folder_name = PQgetvalue(res, i, 1);
+
+        bool is_parent_null = PQgetisnull(res, i, 2);
+        folder.parent_folder_id = is_parent_null ? 0 : std::stoi(PQgetvalue(res, i, 2));
+
+        folder.created_at = PQgetvalue(res, i, 3);
+        folder.folder_type = PQgetvalue(res, i, 4);
+        folder.owner_id = std::stoi(PQgetvalue(res, i, 5));
+        folder.owner_email = PQgetvalue(res, i, 6);
+        folder.group_id = std::stoi(PQgetvalue(res, i, 7));
+        folder.group_name = PQgetvalue(res, i, 8);
+
+        folders.push_back(folder);
+    }
+
+    PQclear(res);
+    return folders;
+}
+
+bool DB::canUserAccessFile(const std::string& user_id, int file_id)
+{
+    if (!conn_) return false;
+
+    auto user_groups = getUserGroupIds(user_id);
+
+    std::string group_list = "0";
+    for (int group_id : user_groups) {
+        group_list += "," + std::to_string(group_id);
+    }
+
+    std::string query = R"(
+        SELECT 1 FROM files
+        WHERE file_id = $1
+          AND (user_id = $2 OR group_id IN ()" + group_list + R"()))
+        LIMIT 1;
+    )";
+
+    const char* paramValues[2];
+    std::string fileIdStr = std::to_string(file_id);
+    paramValues[0] = fileIdStr.c_str();
+    paramValues[1] = user_id.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 2, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to check file access: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return false;
+    }
+
+    bool hasAccess = (PQntuples(res) > 0);
+    PQclear(res);
+    return hasAccess;
+}
+
+bool DB::canUserModifyFile(const std::string& user_id, int file_id)
+{
+    if (!conn_) return false;
+
+    std::string query = R"(
+        SELECT 1 FROM files
+        WHERE file_id = $1 AND user_id = $2
+        LIMIT 1;
+    )";
+
+    const char* paramValues[2];
+    std::string fileIdStr = std::to_string(file_id);
+    paramValues[0] = fileIdStr.c_str();
+    paramValues[1] = user_id.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 2, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to check file modify permission: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return false;
+    }
+
+    bool canModify = (PQntuples(res) > 0);
+    PQclear(res);
+    return canModify;
+}
+
+bool DB::canUserAccessFolder(const std::string& user_id, int folder_id)
+{
+    if (!conn_) return false;
+
+    auto user_groups = getUserGroupIds(user_id);
+
+    std::string group_list = "0";
+    for (int group_id : user_groups) {
+        group_list += "," + std::to_string(group_id);
+    }
+
+    std::string query = R"(
+        SELECT 1 FROM folders
+        WHERE folder_id = $1
+          AND (user_id = $2 OR group_id IN ()" + group_list + R"()))
+        LIMIT 1;
+    )";
+
+    const char* paramValues[2];
+    std::string folderIdStr = std::to_string(folder_id);
+    paramValues[0] = folderIdStr.c_str();
+    paramValues[1] = user_id.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 2, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to check folder access: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return false;
+    }
+
+    bool hasAccess = (PQntuples(res) > 0);
+    PQclear(res);
+    return hasAccess;
+}
+
+bool DB::canUserModifyFolder(const std::string& user_id, int folder_id)
+{
+    if (!conn_) return false;
+
+    std::string query = R"(
+        SELECT 1 FROM folders
+        WHERE folder_id = $1 AND user_id = $2
+        LIMIT 1;
+    )";
+
+    const char* paramValues[2];
+    std::string folderIdStr = std::to_string(folder_id);
+    paramValues[0] = folderIdStr.c_str();
+    paramValues[1] = user_id.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 2, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to check folder modify permission: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return false;
+    }
+
+    bool canModify = (PQntuples(res) > 0);
+    PQclear(res);
+    return canModify;
+}
+
+bool DB::insertSharedFile(const std::string& user_id, int folder_id, const std::string& file_name, int file_size, int group_id)
+{
+    if (!conn_) return false;
+
+    if (folder_id > 0)
+    {
+        if (!canUserAccessFolder(user_id, folder_id))
+        {
+            std::cerr << "User doesn't have access to folder " << folder_id << std::endl;
+            return false;
+        }
+    }
+
+    if (folder_id < 0)
+    {
+        folder_id = 0;
+    }
+
+    std::string query = R"(
+        INSERT INTO files (user_id, folder_id, file_name, file_size, file_type, group_id)
+        VALUES
+        (
+            $1,
+            CASE WHEN $2::int = 0 THEN NULL ELSE $2::int END,
+            $3,
+            $4,
+            CASE WHEN $5::int > 0 THEN 'shared' ELSE 'personal' END,
+            CASE WHEN $5::int > 0 THEN $5::int ELSE NULL END
+        );
+    )";
+
+    const char* paramValues[5];
+    paramValues[0] = user_id.c_str();
+    std::string folderIdStr = std::to_string(folder_id);
+    paramValues[1] = folderIdStr.c_str();
+    paramValues[2] = file_name.c_str();
+    std::string fileSizeStr = std::to_string(file_size);
+    paramValues[3] = fileSizeStr.c_str();
+    std::string groupIdStr = std::to_string(group_id);
+    paramValues[4] = groupIdStr.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 5, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to insert shared file: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return false;
+    }
+
+    PQclear(res);
+    return true;
+}
+
+bool DB::createSharedFolder(const std::string& user_id, const std::string& folder_name, int parent_folder_id, int group_id)
+{
+    if (!conn_) return false;
+
+    if (parent_folder_id > 0)
+    {
+        if (!canUserAccessFolder(user_id, parent_folder_id))
+        {
+            std::cerr << "User doesn't have access to parent folder " << parent_folder_id << std::endl;
+            return false;
+        }
+    }
+
+    std::string query = R"(
+        INSERT INTO folders (user_id, folder_name, parent_folder_id, folder_type, group_id)
+        VALUES
+        (
+            $1,
+            $2,
+            CASE WHEN $3::int = 0 THEN NULL ELSE $3::int END,
+            CASE WHEN $4::int > 0 THEN 'shared' ELSE 'personal' END,
+            CASE WHEN $4::int > 0 THEN $4::int ELSE NULL END
+        );
+    )";
+
+    const char* paramValues[4];
+    paramValues[0] = user_id.c_str();
+    paramValues[1] = folder_name.c_str();
+    std::string parentIdStr = std::to_string(parent_folder_id);
+    paramValues[2] = parentIdStr.c_str();
+    std::string groupIdStr = std::to_string(group_id);
+    paramValues[3] = groupIdStr.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 4, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to create shared folder: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return false;
+    }
+
+    PQclear(res);
+    return true;
 }
