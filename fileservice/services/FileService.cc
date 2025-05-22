@@ -81,13 +81,89 @@ bool FileService::uploadFile(const std::string& user_id, int folder_id, const dr
     return true;
 }
 
+bool FileService::uploadFile(const std::string& user_id, int folder_id, const drogon::HttpRequestPtr &req, std::string &errorMsg, int group_id)
+{
+    drogon::MultiPartParser fileUpload;
+    if (fileUpload.parse(req) != 0 || fileUpload.getFiles().empty())
+    {
+        errorMsg = "No files uploaded or failed to parse multipart data";
+        return false;
+    }
+
+    auto &file = fileUpload.getFiles()[0];
+    std::string filename = fs::path(file.getFileName()).filename().string();
+
+    auto validationResult = ValidationUtils::validateName(filename);
+    if (!validationResult.valid) {
+        errorMsg = "Invalid filename: " + validationResult.errorMessage;
+        return false;
+    }
+
+    fs::path filePath = storagePath_ + "/" + filename;
+
+    std::ofstream outFile(filePath, std::ios::binary);
+    if (!outFile)
+    {
+        errorMsg = "Failed to save file";
+        return false;
+    }
+    outFile.write(file.fileContent().data(), file.fileLength());
+    outFile.close();
+
+    int file_size = static_cast<int>(fs::file_size(filePath));
+
+    if (group_id > 0) {
+        if (!db_->insertSharedFile(user_id, folder_id, filename, file_size, group_id))
+        {
+            errorMsg = "Failed to insert shared file into database";
+            return false;
+        }
+    } else {
+        if (!db_->insertFile(user_id, folder_id, filename, file_size))
+        {
+            errorMsg = "Failed to insert file into database";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool FileService::createFolder(const std::string& user_id, const std::string& folder_name, int parent_folder_id, std::string &errorMsg, int group_id)
+{
+    auto validationResult = ValidationUtils::validateName(folder_name);
+    if (!validationResult.valid) {
+        errorMsg = "Invalid folder name: " + validationResult.errorMessage;
+        return false;
+    }
+
+    if (group_id > 0) {
+        if (!db_->createSharedFolder(user_id, folder_name, parent_folder_id, group_id))
+        {
+            errorMsg = "Failed to create shared folder in database";
+            return false;
+        }
+    } else {
+        if (!db_->createFolder(user_id, folder_name, parent_folder_id))
+        {
+            errorMsg = "Failed to create folder in database";
+            return false;
+        }
+    }
+    return true;
+}
 
 bool FileService::deleteFiles(const std::string& user_id, const std::vector<int>& file_ids, std::string &errorMsg)
 {
     for (int file_id : file_ids)
     {
-        auto fileNameOpt = db_->getFilePath(user_id, file_id);
+        if (!db_->canUserModifyFile(user_id, file_id))
+        {
+            errorMsg = "Permission denied: cannot modify file " + std::to_string(file_id);
+            return false;
+        }
 
+        auto fileNameOpt = db_->getFilePath(user_id, file_id);
         if (!fileNameOpt.has_value())
         {
             errorMsg = "File not found";
@@ -111,9 +187,36 @@ bool FileService::deleteFiles(const std::string& user_id, const std::vector<int>
     return true;
 }
 
+bool FileService::deleteFolder(const std::string& user_id, int folder_id, std::string &errorMsg)
+{
+    if (!db_->canUserModifyFolder(user_id, folder_id))
+    {
+        errorMsg = "Permission denied: cannot modify folder";
+        return false;
+    }
+
+    if (!db_->deleteFolder(user_id, folder_id))
+    {
+        errorMsg = "Failed to delete folder from database";
+        return false;
+    }
+    return true;
+}
+
 bool FileService::moveFile(const std::string& user_id, int file_id, int target_folder_id, std::string &errorMsg)
 {
-    // No need to actually move the physical file on disk, just update the database record
+    if (!db_->canUserModifyFile(user_id, file_id))
+    {
+        errorMsg = "Permission denied: cannot modify file";
+        return false;
+    }
+
+    if (target_folder_id > 0 && !db_->canUserAccessFolder(user_id, target_folder_id))
+    {
+        errorMsg = "Permission denied: cannot access target folder";
+        return false;
+    }
+
     if (!db_->moveFile(user_id, file_id, target_folder_id))
     {
         errorMsg = "Failed to move file";
@@ -124,7 +227,21 @@ bool FileService::moveFile(const std::string& user_id, int file_id, int target_f
 
 bool FileService::moveFiles(const std::string& user_id, const std::vector<int>& file_ids, int target_folder_id, std::string &errorMsg)
 {
-    // Use the optimized DB method to move all files in a single transaction
+    for (int file_id : file_ids)
+    {
+        if (!db_->canUserModifyFile(user_id, file_id))
+        {
+            errorMsg = "Permission denied: cannot modify file " + std::to_string(file_id);
+            return false;
+        }
+    }
+
+    if (target_folder_id > 0 && !db_->canUserAccessFolder(user_id, target_folder_id))
+    {
+        errorMsg = "Permission denied: cannot access target folder";
+        return false;
+    }
+
     if (!db_->moveFiles(user_id, file_ids, target_folder_id))
     {
         errorMsg = "Failed to move files";
@@ -135,6 +252,11 @@ bool FileService::moveFiles(const std::string& user_id, const std::vector<int>& 
 
 std::optional<std::string> FileService::getFilePath(const std::string& user_id, int file_id)
 {
+    if (!db_->canUserAccessFile(user_id, file_id))
+    {
+        return std::nullopt;
+    }
+
     auto fileNameOpt = db_->getFilePath(user_id, file_id);
 
     if (fileNameOpt.has_value())
@@ -180,4 +302,14 @@ bool FileService::deleteFolder(const std::string& user_id, int folder_id, std::s
         return false;
     }
     return true;
+}
+
+std::vector<ExtendedFileInfo> FileService::getExtendedFiles(const std::string& user_id, int folder_id)
+{
+    return db_->getExtendedFiles(user_id, folder_id);
+}
+
+std::vector<ExtendedFolderInfo> FileService::getExtendedFolders(const std::string& user_id, int parent_folder_id)
+{
+    return db_->getExtendedFolders(user_id, parent_folder_id);
 }

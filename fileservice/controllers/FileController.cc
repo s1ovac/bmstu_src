@@ -13,7 +13,7 @@ void FileController::getFiles(const HttpRequestPtr &req, std::function<void(cons
 
     LOG_INFO << "Processing 'getFiles' request for user_id: " << user_id << ", folder_id: " << folder_id;
 
-    auto files = fileService_->getFiles(user_id, folder_id);
+    auto files = fileService_->getExtendedFiles(user_id, folder_id);
     if (files.empty()) {
         LOG_WARN << "No files found for user_id: " << user_id << " in folder_id: " << folder_id;
     }
@@ -23,17 +23,17 @@ void FileController::getFiles(const HttpRequestPtr &req, std::function<void(cons
 
     for (const auto& file : files)
     {
-        int file_id;
-        std::string file_name;
-        int file_size;
-        std::string created_at;
-        std::tie(file_id, file_name, file_size, created_at) = file;
-
         Json::Value fileJson;
-        fileJson["file_id"] = file_id;
-        fileJson["file_name"] = file_name;
-        fileJson["file_size"] = file_size;
-        fileJson["created_at"] = created_at;
+        fileJson["file_id"] = file.file_id;
+        fileJson["file_name"] = file.file_name;
+        fileJson["file_size"] = file.file_size;
+        fileJson["created_at"] = file.created_at;
+        fileJson["file_type"] = file.file_type;
+        fileJson["owner_id"] = file.owner_id;
+        fileJson["owner_email"] = file.owner_email;
+        fileJson["group_id"] = file.group_id;
+        fileJson["group_name"] = file.group_name;
+        fileJson["can_modify"] = (file.owner_id == std::stoi(user_id));
         data["files"].append(fileJson);
     }
 
@@ -45,17 +45,21 @@ void FileController::uploadFile(const HttpRequestPtr &req, std::function<void(co
 {
     std::string user_id = req->attributes()->get<std::string>("user_id");
     int folder_id = req->getOptionalParameter<int>("folder_id").value_or(0);
+    int group_id = req->getOptionalParameter<int>("group_id").value_or(0);
 
-    LOG_INFO << "Processing 'uploadFile' request for user_id: " << user_id << ", folder_id: " << folder_id;
+    LOG_INFO << "Processing 'uploadFile' request for user_id: " << user_id
+             << ", folder_id: " << folder_id << ", group_id: " << group_id;
 
     std::string errorMsg;
-    if (!fileService_->uploadFile(user_id, folder_id, req, errorMsg))
+    if (!fileService_->uploadFile(user_id, folder_id, req, errorMsg, group_id))
     {
         LOG_ERROR << "File upload failed for user_id: " << user_id << " with error: " << errorMsg;
         auto resp = HttpResponse::newHttpResponse();
 
         if (errorMsg.find("Invalid filename:") != std::string::npos) {
             resp->setStatusCode(k400BadRequest);
+        } else if (errorMsg.find("Permission denied") != std::string::npos) {
+            resp->setStatusCode(k403Forbidden);
         } else {
             resp->setStatusCode(k500InternalServerError);
         }
@@ -67,6 +71,9 @@ void FileController::uploadFile(const HttpRequestPtr &req, std::function<void(co
 
     Json::Value respData;
     respData["message"] = "File uploaded successfully";
+    if (group_id > 0) {
+        respData["shared"] = true;
+    }
     auto resp = HttpResponse::newHttpJsonResponse(respData);
     callback(resp);
 }
@@ -98,7 +105,13 @@ void FileController::deleteFiles(const HttpRequestPtr &req, std::function<void(c
     {
         LOG_ERROR << "Failed to delete files for user_id: " << user_id << " with error: " << errorMsg;
         auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k500InternalServerError);
+
+        if (errorMsg.find("Permission denied") != std::string::npos) {
+            resp->setStatusCode(k403Forbidden);
+        } else {
+            resp->setStatusCode(k500InternalServerError);
+        }
+
         resp->setBody(errorMsg);
         callback(resp);
         return;
@@ -136,7 +149,13 @@ void FileController::moveFile(const HttpRequestPtr &req, std::function<void(cons
     {
         LOG_ERROR << "Failed to move file for user_id: " << user_id << " with error: " << errorMsg;
         auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k500InternalServerError);
+
+        if (errorMsg.find("Permission denied") != std::string::npos) {
+            resp->setStatusCode(k403Forbidden);
+        } else {
+            resp->setStatusCode(k500InternalServerError);
+        }
+
         resp->setBody(errorMsg);
         callback(resp);
         return;
@@ -193,7 +212,13 @@ void FileController::moveFiles(const HttpRequestPtr &req, std::function<void(con
     {
         LOG_ERROR << "Failed to move files for user_id: " << user_id << " with error: " << errorMsg;
         auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k500InternalServerError);
+
+        if (errorMsg.find("Permission denied") != std::string::npos) {
+            resp->setStatusCode(k403Forbidden);
+        } else {
+            resp->setStatusCode(k500InternalServerError);
+        }
+
         resp->setBody(errorMsg);
         callback(resp);
         return;
@@ -225,10 +250,10 @@ void FileController::downloadFile(const HttpRequestPtr &req, std::function<void(
     auto filePathOpt = fileService_->getFilePath(user_id, file_id);
     if (!filePathOpt.has_value())
     {
-        LOG_ERROR << "File not found for user_id: " << user_id << " with file_id: " << file_id;
+        LOG_ERROR << "File not found or access denied for user_id: " << user_id << " with file_id: " << file_id;
         auto resp = HttpResponse::newHttpResponse();
         resp->setStatusCode(k404NotFound);
-        resp->setBody("File not found");
+        resp->setBody("File not found or access denied");
         callback(resp);
         return;
     }
@@ -300,17 +325,22 @@ void FileController::createFolder(const HttpRequestPtr &req, std::function<void(
 
     std::string folder_name = (*json)["folder_name"].asString();
     int parent_folder_id = (*json).get("parent_folder_id", 0).asInt();
+    int group_id = (*json).get("group_id", 0).asInt();
 
-    LOG_INFO << "Processing 'createFolder' request for user_id: " << user_id << ", folder_name: " << folder_name << ", parent_folder_id: " << parent_folder_id;
+    LOG_INFO << "Processing 'createFolder' request for user_id: " << user_id
+             << ", folder_name: " << folder_name << ", parent_folder_id: " << parent_folder_id
+             << ", group_id: " << group_id;
 
     std::string errorMsg;
-    if (!fileService_->createFolder(user_id, folder_name, parent_folder_id, errorMsg))
+    if (!fileService_->createFolder(user_id, folder_name, parent_folder_id, errorMsg, group_id))
     {
         LOG_ERROR << "Failed to create folder for user_id: " << user_id << " with error: " << errorMsg;
         auto resp = HttpResponse::newHttpResponse();
 
         if (errorMsg.find("Invalid folder name:") != std::string::npos) {
             resp->setStatusCode(k400BadRequest);
+        } else if (errorMsg.find("Permission denied") != std::string::npos) {
+            resp->setStatusCode(k403Forbidden);
         } else {
             resp->setStatusCode(k500InternalServerError);
         }
@@ -322,6 +352,9 @@ void FileController::createFolder(const HttpRequestPtr &req, std::function<void(
 
     Json::Value respData;
     respData["message"] = "Folder created successfully";
+    if (group_id > 0) {
+        respData["shared"] = true;
+    }
     auto resp = HttpResponse::newHttpJsonResponse(respData);
     callback(resp);
 }
@@ -337,7 +370,13 @@ void FileController::deleteFolder(const HttpRequestPtr &req, std::function<void(
     {
         LOG_ERROR << "Failed to delete folder for user_id: " << user_id << " with error: " << errorMsg;
         auto resp = HttpResponse::newHttpResponse();
-        resp->setStatusCode(k500InternalServerError);
+
+        if (errorMsg.find("Permission denied") != std::string::npos) {
+            resp->setStatusCode(k403Forbidden);
+        } else {
+            resp->setStatusCode(k500InternalServerError);
+        }
+
         resp->setBody(errorMsg);
         callback(resp);
         return;

@@ -22,15 +22,19 @@ public:
     // Методы для работы с файлами
     std::vector<std::tuple<int, std::string, int, std::string>> getFiles(const std::string& user_id, int folder_id);
     bool uploadFile(const std::string& user_id, int folder_id, const drogon::HttpRequestPtr &req, std::string &errorMsg);
+    bool uploadFile(const std::string& user_id, int folder_id, const drogon::HttpRequestPtr &req, std::string &errorMsg, int group_id = 0);
     bool deleteFiles(const std::string& user_id, const std::vector<int>& file_ids, std::string &errorMsg);
     std::optional<std::string> getFilePath(const std::string& user_id, int file_id);
     bool moveFile(const std::string& user_id, int file_id, int target_folder_id, std::string &errorMsg);
     bool moveFiles(const std::string& user_id, const std::vector<int>& file_ids, int target_folder_id, std::string &errorMsg);
+    std::vector<ExtendedFileInfo> getExtendedFiles(const std::string& user_id, int folder_id);
 
     // Методы для работы с папками
     std::vector<std::tuple<int, std::string, int, std::string>> getFolders(const std::string& user_id, int parent_folder_id = -1);
     bool createFolder(const std::string& user_id, const std::string& folder_name, int parent_folder_id, std::string &errorMsg);
+    bool createFolder(const std::string& user_id, const std::string& folder_name, int parent_folder_id, std::string &errorMsg, int group_id = 0);
     bool deleteFolder(const std::string& user_id, int folder_id, std::string &errorMsg);
+    std::vector<ExtendedFolderInfo> getExtendedFolders(const std::string& user_id, int parent_folder_id = -1);
 
 private:
     std::shared_ptr<DB> db_;

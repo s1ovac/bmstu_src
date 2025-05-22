@@ -21,6 +21,10 @@ public:
         ADD_METHOD_TO(FileController::getFolders, "/api/v1/folders", Get, "JwtAuthFilter");
         ADD_METHOD_TO(FileController::createFolder, "/api/v1/folders", Post, "JwtAuthFilter");
         ADD_METHOD_TO(FileController::deleteFolder, "/api/v1/folders/{folder_id}", Delete, "JwtAuthFilter");
+
+        ADD_METHOD_TO(FileController::getUserGroups, "/api/v1/user/groups", Get, "JwtAuthFilter");
+        ADD_METHOD_TO(FileController::uploadSharedFile, "/api/v1/files/shared", Post, "JwtAuthFilter");
+        ADD_METHOD_TO(FileController::createSharedFolder, "/api/v1/folders/shared", Post, "JwtAuthFilter");
     METHOD_LIST_END
 
     FileController();
@@ -38,6 +42,9 @@ public:
     void createFolder(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
     void deleteFolder(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int folder_id);
 
+    void getUserGroups(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
+    void uploadSharedFile(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
+    void createSharedFolder(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
 private:
     std::shared_ptr<FileService> fileService_;
 };
