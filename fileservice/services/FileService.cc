@@ -321,3 +321,33 @@ bool FileService::isUserInGroup(const std::string& user_id, int group_id)
     }
     return false;
 }
+
+bool FileService::toggleFileFavorite(const std::string& user_id, int file_id, bool is_favorite, std::string& errorMsg)
+{
+    if (!db_->toggleFileFavorite(user_id, file_id, is_favorite)) {
+        errorMsg = "Failed to update file favorite status or access denied";
+        return false;
+    }
+
+    return true;
+}
+
+bool FileService::toggleFolderFavorite(const std::string& user_id, int folder_id, bool is_favorite, std::string& errorMsg)
+{
+    if (!db_->toggleFolderFavorite(user_id, folder_id, is_favorite)) {
+        errorMsg = "Failed to update folder favorite status or access denied";
+        return false;
+    }
+
+    return true;
+}
+
+std::vector<ExtendedFileInfo> FileService::getFavoriteFiles(const std::string& user_id)
+{
+    return db_->getFavoriteFiles(user_id);
+}
+
+std::vector<ExtendedFolderInfo> FileService::getFavoriteFolders(const std::string& user_id)
+{
+    return db_->getFavoriteFolders(user_id);
+}

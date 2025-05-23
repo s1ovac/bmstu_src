@@ -17,6 +17,7 @@ struct ExtendedFileInfo {
     std::string owner_email;
     int group_id; // 0 если личный файл
     std::string group_name;
+    bool is_favorite;
 };
 
 struct ExtendedFolderInfo {
@@ -29,6 +30,7 @@ struct ExtendedFolderInfo {
     std::string owner_email;
     int group_id; // 0 если личная папка
     std::string group_name;
+    bool is_favorite;
 };
 
 class DB {
@@ -68,6 +70,12 @@ public:
     std::vector<std::tuple<int, std::string, int, std::string>> getFolders(const std::string& user_id, int parent_folder_id = -1);
     bool createFolder(const std::string& user_id, const std::string& folder_name, int parent_folder_id = -1);
     bool deleteFolder(const std::string& user_id, int folder_id);
+
+    // Методы для работы с избранным
+    bool toggleFileFavorite(const std::string& user_id, int file_id, bool is_favorite);
+    bool toggleFolderFavorite(const std::string& user_id, int folder_id, bool is_favorite);
+    std::vector<ExtendedFileInfo> getFavoriteFiles(const std::string& user_id);
+    std::vector<ExtendedFolderInfo> getFavoriteFolders(const std::string& user_id);
 
     // Admin methods
     std::vector<std::tuple<int, std::string, std::string>> getAllUsers();

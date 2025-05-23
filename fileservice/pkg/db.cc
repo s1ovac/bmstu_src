@@ -1112,10 +1112,9 @@ std::vector<ExtendedFileInfo> DB::getExtendedFiles(const std::string& user_id, i
     std::vector<ExtendedFileInfo> files;
     if (!conn_) return files;
 
-    // Получаем группы пользователя
     auto user_groups = getUserGroupIds(user_id);
 
-    std::string group_list = "0"; // Всегда включаем 0 для личных файлов
+    std::string group_list = "0";
     for (int group_id : user_groups) {
         group_list += "," + std::to_string(group_id);
     }
@@ -1131,7 +1130,8 @@ std::vector<ExtendedFileInfo> DB::getExtendedFiles(const std::string& user_id, i
                    COALESCE(f.file_type, 'personal') as file_type,
                    f.user_id as owner_id, u.email as owner_email,
                    COALESCE(f.group_id, 0) as group_id,
-                   COALESCE(g.group_name, '') as group_name
+                   COALESCE(g.group_name, '') as group_name,
+                   COALESCE(f.is_favorite, FALSE) as is_favorite
             FROM files f
             JOIN users u ON f.user_id = u.user_id
             LEFT JOIN groups g ON f.group_id = g.group_id
@@ -1147,7 +1147,8 @@ std::vector<ExtendedFileInfo> DB::getExtendedFiles(const std::string& user_id, i
                    COALESCE(f.file_type, 'personal') as file_type,
                    f.user_id as owner_id, u.email as owner_email,
                    COALESCE(f.group_id, 0) as group_id,
-                   COALESCE(g.group_name, '') as group_name
+                   COALESCE(g.group_name, '') as group_name,
+                   COALESCE(f.is_favorite, FALSE) as is_favorite
             FROM files f
             JOIN users u ON f.user_id = u.user_id
             LEFT JOIN groups g ON f.group_id = g.group_id
@@ -1182,6 +1183,7 @@ std::vector<ExtendedFileInfo> DB::getExtendedFiles(const std::string& user_id, i
         file.owner_email = PQgetvalue(res, i, 6);
         file.group_id = std::stoi(PQgetvalue(res, i, 7));
         file.group_name = PQgetvalue(res, i, 8);
+        file.is_favorite = (std::string(PQgetvalue(res, i, 9)) == "t");
 
         files.push_back(file);
     }
@@ -1213,7 +1215,8 @@ std::vector<ExtendedFolderInfo> DB::getExtendedFolders(const std::string& user_i
                    COALESCE(f.folder_type, 'personal') as folder_type,
                    f.user_id as owner_id, u.email as owner_email,
                    COALESCE(f.group_id, 0) as group_id,
-                   COALESCE(g.group_name, '') as group_name
+                   COALESCE(g.group_name, '') as group_name,
+                   COALESCE(f.is_favorite, FALSE) as is_favorite
             FROM folders f
             JOIN users u ON f.user_id = u.user_id
             LEFT JOIN groups g ON f.group_id = g.group_id
@@ -1229,7 +1232,8 @@ std::vector<ExtendedFolderInfo> DB::getExtendedFolders(const std::string& user_i
                    COALESCE(f.folder_type, 'personal') as folder_type,
                    f.user_id as owner_id, u.email as owner_email,
                    COALESCE(f.group_id, 0) as group_id,
-                   COALESCE(g.group_name, '') as group_name
+                   COALESCE(g.group_name, '') as group_name,
+                   COALESCE(f.is_favorite, FALSE) as is_favorite
             FROM folders f
             JOIN users u ON f.user_id = u.user_id
             LEFT JOIN groups g ON f.group_id = g.group_id
@@ -1267,6 +1271,7 @@ std::vector<ExtendedFolderInfo> DB::getExtendedFolders(const std::string& user_i
         folder.owner_email = PQgetvalue(res, i, 6);
         folder.group_id = std::stoi(PQgetvalue(res, i, 7));
         folder.group_name = PQgetvalue(res, i, 8);
+        folder.is_favorite = (std::string(PQgetvalue(res, i, 9)) == "t");
 
         folders.push_back(folder);
     }
@@ -1656,4 +1661,190 @@ bool DB::syncAllGroups(const std::vector<std::pair<int, std::string>>& groups)
     PQclear(commitRes);
 
     return true;
+}
+
+bool DB::toggleFileFavorite(const std::string& user_id, int file_id, bool is_favorite)
+{
+    if (!conn_) return false;
+
+    // Проверяем права доступа к файлу
+    if (!canUserAccessFile(user_id, file_id)) {
+        std::cerr << "User doesn't have access to file " << file_id << std::endl;
+        return false;
+    }
+
+    std::string query = R"(
+        UPDATE files
+        SET is_favorite = $1
+        WHERE file_id = $2 AND user_id = $3;
+    )";
+
+    const char* paramValues[3];
+    std::string isFavoriteStr = is_favorite ? "true" : "false";
+    paramValues[0] = isFavoriteStr.c_str();
+    std::string fileIdStr = std::to_string(file_id);
+    paramValues[1] = fileIdStr.c_str();
+    paramValues[2] = user_id.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 3, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to toggle file favorite: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return false;
+    }
+
+    // Проверяем, была ли обновлена строка
+    int rowsAffected = std::stoi(PQcmdTuples(res));
+    PQclear(res);
+
+    return rowsAffected > 0;
+}
+
+bool DB::toggleFolderFavorite(const std::string& user_id, int folder_id, bool is_favorite)
+{
+    if (!conn_) return false;
+
+    // Проверяем права доступа к папке
+    if (!canUserAccessFolder(user_id, folder_id)) {
+        std::cerr << "User doesn't have access to folder " << folder_id << std::endl;
+        return false;
+    }
+
+    std::string query = R"(
+        UPDATE folders
+        SET is_favorite = $1
+        WHERE folder_id = $2 AND user_id = $3;
+    )";
+
+    const char* paramValues[3];
+    std::string isFavoriteStr = is_favorite ? "true" : "false";
+    paramValues[0] = isFavoriteStr.c_str();
+    std::string folderIdStr = std::to_string(folder_id);
+    paramValues[1] = folderIdStr.c_str();
+    paramValues[2] = user_id.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 3, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to toggle folder favorite: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return false;
+    }
+
+    // Проверяем, была ли обновлена строка
+    int rowsAffected = std::stoi(PQcmdTuples(res));
+    PQclear(res);
+
+    return rowsAffected > 0;
+}
+
+std::vector<ExtendedFileInfo> DB::getFavoriteFiles(const std::string& user_id)
+{
+    std::vector<ExtendedFileInfo> files;
+    if (!conn_) return files;
+
+    auto user_groups = getUserGroupIds(user_id);
+
+    std::string group_list = "0";
+    for (int group_id : user_groups) {
+        group_list += "," + std::to_string(group_id);
+    }
+
+    std::string query = R"(
+        SELECT f.file_id, f.file_name, f.file_size, f.created_at,
+               COALESCE(f.file_type, 'personal') as file_type,
+               f.user_id as owner_id, u.email as owner_email,
+               COALESCE(f.group_id, 0) as group_id,
+               COALESCE(g.group_name, '') as group_name
+        FROM files f
+        JOIN users u ON f.user_id = u.user_id
+        LEFT JOIN groups g ON f.group_id = g.group_id
+        WHERE f.user_id = $1
+          AND f.is_favorite = TRUE
+        ORDER BY f.created_at DESC;
+    )";
+
+    const char* paramValues[1] = { user_id.c_str() };
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 1, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get favorite files: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return files;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        ExtendedFileInfo file;
+        file.file_id = std::stoi(PQgetvalue(res, i, 0));
+        file.file_name = PQgetvalue(res, i, 1);
+        file.file_size = std::stoi(PQgetvalue(res, i, 2));
+        file.created_at = PQgetvalue(res, i, 3);
+        file.file_type = PQgetvalue(res, i, 4);
+        file.owner_id = std::stoi(PQgetvalue(res, i, 5));
+        file.owner_email = PQgetvalue(res, i, 6);
+        file.group_id = std::stoi(PQgetvalue(res, i, 7));
+        file.group_name = PQgetvalue(res, i, 8);
+
+        files.push_back(file);
+    }
+
+    PQclear(res);
+    return files;
+}
+
+std::vector<ExtendedFolderInfo> DB::getFavoriteFolders(const std::string& user_id)
+{
+    std::vector<ExtendedFolderInfo> folders;
+    if (!conn_) return folders;
+
+    std::string query = R"(
+        SELECT f.folder_id, f.folder_name, f.parent_folder_id, f.created_at,
+               COALESCE(f.folder_type, 'personal') as folder_type,
+               f.user_id as owner_id, u.email as owner_email,
+               COALESCE(f.group_id, 0) as group_id,
+               COALESCE(g.group_name, '') as group_name
+        FROM folders f
+        JOIN users u ON f.user_id = u.user_id
+        LEFT JOIN groups g ON f.group_id = g.group_id
+        WHERE f.user_id = $1
+          AND f.is_favorite = TRUE
+        ORDER BY f.created_at DESC;
+    )";
+
+    const char* paramValues[1] = { user_id.c_str() };
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 1, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get favorite folders: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return folders;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        ExtendedFolderInfo folder;
+        folder.folder_id = std::stoi(PQgetvalue(res, i, 0));
+        folder.folder_name = PQgetvalue(res, i, 1);
+
+        bool is_parent_null = PQgetisnull(res, i, 2);
+        folder.parent_folder_id = is_parent_null ? 0 : std::stoi(PQgetvalue(res, i, 2));
+
+        folder.created_at = PQgetvalue(res, i, 3);
+        folder.folder_type = PQgetvalue(res, i, 4);
+        folder.owner_id = std::stoi(PQgetvalue(res, i, 5));
+        folder.owner_email = PQgetvalue(res, i, 6);
+        folder.group_id = std::stoi(PQgetvalue(res, i, 7));
+        folder.group_name = PQgetvalue(res, i, 8);
+
+        folders.push_back(folder);
+    }
+
+    PQclear(res);
+    return folders;
 }

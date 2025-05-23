@@ -34,6 +34,7 @@ void FileController::getFiles(const HttpRequestPtr &req, std::function<void(cons
         fileJson["group_id"] = file.group_id;
         fileJson["group_name"] = file.group_name;
         fileJson["can_modify"] = (file.owner_id == std::stoi(user_id));
+        fileJson["is_favorite"] = file.is_favorite;
         data["files"].append(fileJson);
     }
 
@@ -291,6 +292,7 @@ void FileController::getFolders(const HttpRequestPtr &req, std::function<void(co
             folderJson["group_id"] = folder.group_id;
             folderJson["group_name"] = folder.group_name;
             folderJson["can_modify"] = (folder.owner_id == std::stoi(user_id));
+            folderJson["is_favorite"] = folder.is_favorite;
             data["folders"].append(folderJson);
         }
 

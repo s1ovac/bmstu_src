@@ -39,6 +39,12 @@ public:
     std::vector<std::pair<int, std::string>> getUserGroups(const std::string& user_id);
     bool isUserInGroup(const std::string& user_id, int group_id);
 
+    // Методы для работы с избранным
+    bool toggleFileFavorite(const std::string& user_id, int file_id, bool is_favorite, std::string& errorMsg);
+    bool toggleFolderFavorite(const std::string& user_id, int folder_id, bool is_favorite, std::string& errorMsg);
+    std::vector<ExtendedFileInfo> getFavoriteFiles(const std::string& user_id);
+    std::vector<ExtendedFolderInfo> getFavoriteFolders(const std::string& user_id);
+
 private:
     std::shared_ptr<DB> db_;
     std::string storagePath_;

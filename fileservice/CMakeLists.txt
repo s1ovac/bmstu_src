@@ -20,6 +20,7 @@ add_executable(fileservice
         pkg/db.cc
         controllers/FileController.cc
         controllers/AdminController.cpp
+        controllers/FavoritesController.cpp
         filters/JwtAuthFilter.cc
         filters/PermissionFilter.cpp
         services/FileService.cc
