@@ -127,35 +127,73 @@
         }
     };
 
-    // Вычисляемые хранилища для фильтрованных данных
-    const filteredFolders = derived(
+    const personalFolders = derived(
         [foldersList, searchQuery],
         ([$foldersList, $searchQuery]) => {
-            console.log('Calculating filteredFolders', {
-                foldersList: $foldersList,
-                searchQuery: $searchQuery
-            });
+            const folders = $foldersList.filter(folder => folder.folder_type === 'personal');
 
             if (!$searchQuery || $searchQuery.trim() === '') {
-                return $foldersList;
+                return folders;
             }
 
             const query = $searchQuery.trim().toLowerCase();
-            const result = $foldersList.filter(
-                folder => folder && folder.folder_name &&
-                    folder.folder_name.toLowerCase().includes(query)
+            return folders.filter(folder =>
+                folder && folder.folder_name &&
+                folder.folder_name.toLowerCase().includes(query)
             );
-
-            console.log('Filtered folders result:', result);
-            return result;
         }
     );
 
-    $: displayedFiles = filterByGroup
-        ? $filteredFiles.filter(file => file.group_id === filterByGroup)
-        : $filteredFiles;
+    const sharedFolders = derived(
+        [foldersList, searchQuery],
+        ([$foldersList, $searchQuery]) => {
+            const folders = $foldersList.filter(folder => folder.folder_type === 'shared');
 
-    $: displayedFolders = $filteredFolders;
+            if (!$searchQuery || $searchQuery.trim() === '') {
+                return folders;
+            }
+
+            const query = $searchQuery.trim().toLowerCase();
+            return folders.filter(folder =>
+                folder && folder.folder_name &&
+                folder.folder_name.toLowerCase().includes(query)
+            );
+        }
+    );
+
+    const personalFiles = derived(
+        [filesList, searchQuery],
+        ([$filesList, $searchQuery]) => {
+            const files = $filesList.filter(file => file.file_type === 'personal');
+
+            if (!$searchQuery || $searchQuery.trim() === '') {
+                return files;
+            }
+
+            const query = $searchQuery.trim().toLowerCase();
+            return files.filter(file =>
+                file && file.file_name &&
+                file.file_name.toLowerCase().includes(query)
+            );
+        }
+    );
+
+    const sharedFiles = derived(
+        [filesList, searchQuery],
+        ([$filesList, $searchQuery]) => {
+            const files = $filesList.filter(file => file.file_type === 'shared');
+
+            if (!$searchQuery || $searchQuery.trim() === '') {
+                return files;
+            }
+
+            const query = $searchQuery.trim().toLowerCase();
+            return files.filter(file =>
+                file && file.file_name &&
+                file.file_name.toLowerCase().includes(query)
+            );
+        }
+    );
 
     const filteredFiles = derived(
         [filesList, searchQuery],
@@ -534,11 +572,12 @@
     };
 
     // Вычисляемые свойства для отображения в шаблоне
-    $: allSelected = $selectedItems.length === ($filteredFolders.length + $filteredFiles.length)
-        && ($filteredFolders.length + $filteredFiles.length) > 0;
-    $: totalItems = $filteredFolders.length + $filteredFiles.length;
+    $: totalPersonalItems = $personalFolders.length + $personalFiles.length;
+    $: totalSharedItems = $sharedFolders.length + $sharedFiles.length;
+    $: totalItems = totalPersonalItems + totalSharedItems;
+    $: allSelected = $selectedItems.length === totalItems && totalItems > 0;
     $: selectedCount = $selectedItems.length;
-    $: isEmptyContent = $filteredFolders.length === 0 && $filteredFiles.length === 0;
+    $: isEmptyContent = totalItems === 0;
     $: searchValue = $searchQuery;
 </script>
 
@@ -614,40 +653,6 @@
             </button>
         </div>
     </div>
-
-    <!-- Панель фильтров -->
-    {#if $userGroups.length > 0}
-        <div class="filter-bar">
-            <div class="mode-toggle">
-                <label>
-                    <input type="checkbox" bind:checked={showSharedMode}>
-                    <span>Режим общих файлов</span>
-                </label>
-            </div>
-
-            {#if showSharedMode}
-                <div class="group-selector">
-                    <label>Группа:</label>
-                    <select bind:value={selectedGroupId}>
-                        <option value={null}>Выберите группу</option>
-                        {#each $userGroups as group}
-                            <option value={group.group_id}>{group.group_name}</option>
-                        {/each}
-                    </select>
-                </div>
-            {/if}
-
-            <div class="filter-selector">
-                <label>Показать:</label>
-                <select bind:value={filterByGroup}>
-                    <option value={null}>Все файлы</option>
-                    {#each $userGroups as group}
-                        <option value={group.group_id}>Только {group.group_name}</option>
-                    {/each}
-                </select>
-            </div>
-        </div>
-    {/if}
 
     <!-- Панель действий -->
     <div class="actions-bar">
@@ -734,7 +739,7 @@
             </div>
         {:else}
             <!-- Заголовки списка, если выбран режим list -->
-            {#if viewMode === 'list' && ($filteredFolders.length > 0 || $filteredFiles.length > 0)}
+            {#if viewMode === 'list' && totalItems > 0}
                 <div class="list-header">
                     <div class="list-cell checkbox-cell">
                         <input
@@ -750,144 +755,276 @@
                 </div>
             {/if}
 
-            <!-- Папки -->
-            {#if $filteredFolders.length > 0}
-                {#if viewMode === 'grid'}
-                    <div class="grid-container">
-                        {#each $filteredFolders as folder (folder.folder_id)}
+            <!-- Личные файлы и папки -->
+            {#if totalPersonalItems > 0}
+                <div class="content-section">
+                    <div class="section-header">
+                        <h3><i class="material-icons">person</i> Личные файлы</h3>
+                    </div>
+
+                    {#if viewMode === 'grid'}
+                        <div class="grid-container">
+                            <!-- Личные папки -->
+                            {#each $personalFolders as folder (folder.folder_id)}
+                                <div
+                                        class="grid-item folder-item personal-item {isItemSelected({id: folder.folder_id, type: 'folder'}) ? 'selected' : ''}"
+                                        on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}
+                                >
+                                    <div class="item-checkbox" on:click|stopPropagation>
+                                        <input
+                                                type="checkbox"
+                                                checked={isItemSelected({id: folder.folder_id, type: 'folder'})}
+                                                on:change={(e) => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name}, e)}
+                                        />
+                                    </div>
+                                    <div class="item-icon">
+                                        <i class="material-icons">folder</i>
+                                    </div>
+                                    <div class="item-details">
+                                        <div class="item-name" title={folder.folder_name}>{folder.folder_name}</div>
+                                        <div class="item-meta">{formatDate(folder.created_at)}</div>
+                                    </div>
+                                </div>
+                            {/each}
+
+                            <!-- Личные файлы -->
+                            {#each $personalFiles as file (file.file_id)}
+                                <div
+                                        class="grid-item file-item personal-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''}"
+                                        on:click={() => handleDownload(file.file_id, file.file_name)}
+                                >
+                                    <div class="item-checkbox" on:click|stopPropagation>
+                                        <input
+                                                type="checkbox"
+                                                checked={isItemSelected({id: file.file_id, type: 'file'})}
+                                                on:change={(e) => toggleItemSelection({id: file.file_id, type: 'file', name: file.file_name}, e)}
+                                        />
+                                    </div>
+                                    <div class="item-icon">
+                                        <i class="material-icons">{getFileIcon(file.file_name)}</i>
+                                    </div>
+                                    <div class="item-details">
+                                        <div class="item-name" title={file.file_name}>{file.file_name}</div>
+                                        <div class="item-meta">
+                                            {formatFileSize(file.file_size)} • {formatDate(file.created_at)}
+                                        </div>
+                                    </div>
+                                </div>
+                            {/each}
+                        </div>
+                    {:else}
+                        <!-- Список личных папок -->
+                        {#each $personalFolders as folder (folder.folder_id)}
                             <div
-                                    class="grid-item folder-item {isItemSelected({id: folder.folder_id, type: 'folder'}) ? 'selected' : ''}"
+                                    class="list-row folder-item personal-item {isItemSelected({id: folder.folder_id, type: 'folder'}) ? 'selected' : ''}"
                                     on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}
                             >
-                                <div class="item-checkbox" on:click|stopPropagation>
+                                <div class="list-cell checkbox-cell" on:click|stopPropagation>
                                     <input
                                             type="checkbox"
                                             checked={isItemSelected({id: folder.folder_id, type: 'folder'})}
                                             on:change={(e) => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name}, e)}
                                     />
                                 </div>
-                                <div class="item-icon">
-                                    <i class="material-icons">folder</i>
+                                <div class="list-cell name-cell">
+                                    <i class="material-icons item-type-icon">folder</i>
+                                    <span>{folder.folder_name}</span>
                                 </div>
-                                <div class="item-details">
-                                    <div class="item-name" title={folder.folder_name}>{folder.folder_name}</div>
-                                    <div class="item-meta">{formatDate(folder.created_at)}</div>
+                                <div class="list-cell date-cell">{formatDate(folder.created_at)}</div>
+                                <div class="list-cell size-cell">—</div>
+                                <div class="list-cell actions-cell">
+                                    <button class="icon-button" on:click|stopPropagation={() => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name})}>
+                                        <i class="material-icons">more_vert</i>
+                                    </button>
                                 </div>
                             </div>
                         {/each}
-                    </div>
-                {:else}
-                    {#each $filteredFolders as folder (folder.folder_id)}
-                        <div
-                                class="list-row folder-item {isItemSelected({id: folder.folder_id, type: 'folder'}) ? 'selected' : ''}"
-                                on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}
-                        >
-                            <div class="list-cell checkbox-cell" on:click|stopPropagation>
-                                <input
-                                        type="checkbox"
-                                        checked={isItemSelected({id: folder.folder_id, type: 'folder'})}
-                                        on:change={(e) => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name}, e)}
-                                />
-                            </div>
-                            <div class="list-cell name-cell">
-                                <i class="material-icons item-type-icon">folder</i>
-                                <span>{folder.folder_name}</span>
-                            </div>
-                            <div class="list-cell date-cell">{formatDate(folder.created_at)}</div>
-                            <div class="list-cell size-cell">—</div>
-                            <div class="list-cell actions-cell">
-                                <button class="icon-button" on:click|stopPropagation={() => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name})}>
-                                    <i class="material-icons">more_vert</i>
-                                </button>
-                            </div>
-                        </div>
-                    {/each}
-                {/if}
-            {/if}
 
-            <!-- Файлы -->
-            {#if displayedFiles.length > 0}
-                {#if viewMode === 'grid'}
-                    <div class="grid-container">
-                        {#each displayedFiles as file (file.file_id)}
+                        <!-- Список личных файлов -->
+                        {#each $personalFiles as file (file.file_id)}
                             <div
-                                    class="grid-item file-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''} {file.file_type === 'shared' ? 'shared-item' : ''}"
+                                    class="list-row file-item personal-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''}"
                                     on:click={() => handleDownload(file.file_id, file.file_name)}
                             >
-                                <div class="item-checkbox" on:click|stopPropagation>
+                                <div class="list-cell checkbox-cell" on:click|stopPropagation>
                                     <input
                                             type="checkbox"
                                             checked={isItemSelected({id: file.file_id, type: 'file'})}
                                             on:change={(e) => toggleItemSelection({id: file.file_id, type: 'file', name: file.file_name}, e)}
-                                            disabled={file.file_type === 'shared' && !file.can_modify}
                                     />
                                 </div>
-                                {#if file.file_type === 'shared'}
-                                    <div class="shared-indicator" title="Общий файл">
-                                        <i class="material-icons">{getTypeIcon(file.file_type)}</i>
-                                    </div>
-                                {/if}
-                                <div class="item-icon">
-                                    <i class="material-icons">{getFileIcon(file.file_name)}</i>
+                                <div class="list-cell name-cell">
+                                    <i class="material-icons item-type-icon">{getFileIcon(file.file_name)}</i>
+                                    <span>{file.file_name}</span>
                                 </div>
-                                <div class="item-details">
-                                    <div class="item-name" title={file.file_name}>{file.file_name}</div>
-                                    <div class="item-meta">
-                                        {formatFileSize(file.file_size)} • {formatDate(file.created_at)}
-                                        {#if file.file_type === 'shared'}
+                                <div class="list-cell date-cell">{formatDate(file.created_at)}</div>
+                                <div class="list-cell size-cell">{formatFileSize(file.file_size)}</div>
+                                <div class="list-cell actions-cell">
+                                    <button class="icon-button" on:click|stopPropagation={() => handleDownload(file.file_id, file.file_name)}>
+                                        <i class="material-icons">download</i>
+                                    </button>
+                                </div>
+                            </div>
+                        {/each}
+                    {/if}
+                </div>
+            {/if}
+
+            <!-- Общие файлы и папки -->
+            {#if totalSharedItems > 0}
+                <div class="content-section">
+                    <div class="section-header">
+                        <h3><i class="material-icons">group</i> Общие файлы</h3>
+                    </div>
+
+                    {#if viewMode === 'grid'}
+                        <div class="grid-container">
+                            <!-- Общие папки -->
+                            {#each $sharedFolders as folder (folder.folder_id)}
+                                <div
+                                        class="grid-item folder-item shared-item {isItemSelected({id: folder.folder_id, type: 'folder'}) ? 'selected' : ''}"
+                                        on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}
+                                >
+                                    <div class="item-checkbox" on:click|stopPropagation>
+                                        <input
+                                                type="checkbox"
+                                                checked={isItemSelected({id: folder.folder_id, type: 'folder'})}
+                                                on:change={(e) => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name}, e)}
+                                                disabled={!folder.can_modify}
+                                        />
+                                    </div>
+                                    <div class="shared-indicator" title="Общая папка - {folder.group_name}">
+                                        <i class="material-icons">group</i>
+                                    </div>
+                                    <div class="item-icon">
+                                        <i class="material-icons">folder</i>
+                                    </div>
+                                    <div class="item-details">
+                                        <div class="item-name" title={folder.folder_name}>{folder.folder_name}</div>
+                                        <div class="item-meta">
+                                            {formatDate(folder.created_at)}
+                                            <div class="item-group">
+                                                <i class="material-icons tiny">group</i>
+                                                {folder.group_name}
+                                            </div>
                                             <div class="item-owner">
                                                 <i class="material-icons tiny">person</i>
-                                                {file.owner_email}
+                                                {folder.owner_email}
                                             </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {/each}
+
+                            <!-- Общие файлы -->
+                            {#each $sharedFiles as file (file.file_id)}
+                                <div
+                                        class="grid-item file-item shared-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''}"
+                                        on:click={() => handleDownload(file.file_id, file.file_name)}
+                                >
+                                    <div class="item-checkbox" on:click|stopPropagation>
+                                        <input
+                                                type="checkbox"
+                                                checked={isItemSelected({id: file.file_id, type: 'file'})}
+                                                on:change={(e) => toggleItemSelection({id: file.file_id, type: 'file', name: file.file_name}, e)}
+                                                disabled={!file.can_modify}
+                                        />
+                                    </div>
+                                    <div class="shared-indicator" title="Общий файл - {file.group_name}">
+                                        <i class="material-icons">group</i>
+                                    </div>
+                                    <div class="item-icon">
+                                        <i class="material-icons">{getFileIcon(file.file_name)}</i>
+                                    </div>
+                                    <div class="item-details">
+                                        <div class="item-name" title={file.file_name}>{file.file_name}</div>
+                                        <div class="item-meta">
+                                            {formatFileSize(file.file_size)} • {formatDate(file.created_at)}
                                             <div class="item-group">
                                                 <i class="material-icons tiny">group</i>
                                                 {file.group_name}
                                             </div>
-                                        {/if}
+                                            <div class="item-owner">
+                                                <i class="material-icons tiny">person</i>
+                                                {file.owner_email}
+                                            </div>
+                                        </div>
                                     </div>
+                                </div>
+                            {/each}
+                        </div>
+                    {:else}
+                        <!-- Список общих папок -->
+                        {#each $sharedFolders as folder (folder.folder_id)}
+                            <div
+                                    class="list-row folder-item shared-item {isItemSelected({id: folder.folder_id, type: 'folder'}) ? 'selected' : ''}"
+                                    on:click={() => navigateToFolder(folder.folder_id, folder.folder_name)}
+                            >
+                                <div class="list-cell checkbox-cell" on:click|stopPropagation>
+                                    <input
+                                            type="checkbox"
+                                            checked={isItemSelected({id: folder.folder_id, type: 'folder'})}
+                                            on:change={(e) => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name}, e)}
+                                            disabled={!folder.can_modify}
+                                    />
+                                </div>
+                                <div class="list-cell name-cell">
+                                    <i class="material-icons item-type-icon">folder</i>
+                                    <span>{folder.folder_name}</span>
+                                    <span class="shared-badge">
+                                    <i class="material-icons tiny">group</i>
+                                        {folder.group_name}
+                                </span>
+                                </div>
+                                <div class="list-cell date-cell">{formatDate(folder.created_at)}</div>
+                                <div class="list-cell size-cell">—</div>
+                                <div class="list-cell actions-cell">
+                                <span class="owner-info" title="Владелец: {folder.owner_email}">
+                                    <i class="material-icons tiny">person</i>
+                                </span>
+                                    <button class="icon-button" on:click|stopPropagation={() => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name})}>
+                                        <i class="material-icons">more_vert</i>
+                                    </button>
                                 </div>
                             </div>
                         {/each}
-                    </div>
-                {:else}
-                    {#each displayedFiles as file (file.file_id)}
-                        <div
-                                class="list-row file-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''} {file.file_type === 'shared' ? 'shared-item' : ''}"
-                                on:click={() => handleDownload(file.file_id, file.file_name)}
-                        >
-                            <div class="list-cell checkbox-cell" on:click|stopPropagation>
-                                <input
-                                        type="checkbox"
-                                        checked={isItemSelected({id: file.file_id, type: 'file'})}
-                                        on:change={(e) => toggleItemSelection({id: file.file_id, type: 'file', name: file.file_name}, e)}
-                                        disabled={file.file_type === 'shared' && !file.can_modify}
-                                />
+
+                        <!-- Список общих файлов -->
+                        {#each $sharedFiles as file (file.file_id)}
+                            <div
+                                    class="list-row file-item shared-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''}"
+                                    on:click={() => handleDownload(file.file_id, file.file_name)}
+                            >
+                                <div class="list-cell checkbox-cell" on:click|stopPropagation>
+                                    <input
+                                            type="checkbox"
+                                            checked={isItemSelected({id: file.file_id, type: 'file'})}
+                                            on:change={(e) => toggleItemSelection({id: file.file_id, type: 'file', name: file.file_name}, e)}
+                                            disabled={!file.can_modify}
+                                    />
+                                </div>
+                                <div class="list-cell name-cell">
+                                    <i class="material-icons item-type-icon">{getFileIcon(file.file_name)}</i>
+                                    <span>{file.file_name}</span>
+                                    <span class="shared-badge">
+                                    <i class="material-icons tiny">group</i>
+                                        {file.group_name}
+                                </span>
+                                </div>
+                                <div class="list-cell date-cell">{formatDate(file.created_at)}</div>
+                                <div class="list-cell size-cell">{formatFileSize(file.file_size)}</div>
+                                <div class="list-cell actions-cell">
+                                <span class="owner-info" title="Владелец: {file.owner_email}">
+                                    <i class="material-icons tiny">person</i>
+                                </span>
+                                    <button class="icon-button" on:click|stopPropagation={() => handleDownload(file.file_id, file.file_name)}>
+                                        <i class="material-icons">download</i>
+                                    </button>
+                                </div>
                             </div>
-                            <div class="list-cell name-cell">
-                                <i class="material-icons item-type-icon">{getFileIcon(file.file_name)}</i>
-                                <span>{file.file_name}</span>
-                                {#if file.file_type === 'shared'}
-                        <span class="shared-badge">
-                            <i class="material-icons tiny">{getTypeIcon(file.file_type)}</i>
-                            {file.group_name}
-                        </span>
-                                {/if}
-                            </div>
-                            <div class="list-cell date-cell">{formatDate(file.created_at)}</div>
-                            <div class="list-cell size-cell">{formatFileSize(file.file_size)}</div>
-                            <div class="list-cell actions-cell">
-                                {#if file.file_type === 'shared'}
-                        <span class="owner-info" title="Владелец: {file.owner_email}">
-                            <i class="material-icons tiny">person</i>
-                        </span>
-                                {/if}
-                                <button class="icon-button" on:click|stopPropagation={() => handleDownload(file.file_id, file.file_name)}>
-                                    <i class="material-icons">download</i>
-                                </button>
-                            </div>
-                        </div>
-                    {/each}
-                {/if}
+                        {/each}
+                    {/if}
+                </div>
             {/if}
         {/if}
     </div>
