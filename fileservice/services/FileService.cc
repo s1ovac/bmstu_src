@@ -294,16 +294,6 @@ bool FileService::createFolder(const std::string& user_id, const std::string& fo
     return true;
 }
 
-bool FileService::deleteFolder(const std::string& user_id, int folder_id, std::string &errorMsg)
-{
-    if (!db_->deleteFolder(user_id, folder_id))
-    {
-        errorMsg = "Failed to delete folder from database";
-        return false;
-    }
-    return true;
-}
-
 std::vector<ExtendedFileInfo> FileService::getExtendedFiles(const std::string& user_id, int folder_id)
 {
     return db_->getExtendedFiles(user_id, folder_id);
@@ -312,4 +302,22 @@ std::vector<ExtendedFileInfo> FileService::getExtendedFiles(const std::string& u
 std::vector<ExtendedFolderInfo> FileService::getExtendedFolders(const std::string& user_id, int parent_folder_id)
 {
     return db_->getExtendedFolders(user_id, parent_folder_id);
+}
+
+std::vector<std::pair<int, std::string>> FileService::getUserGroups(const std::string& user_id)
+{
+    return db_->getUserGroups(std::stoi(user_id));
+}
+
+bool FileService::isUserInGroup(const std::string& user_id, int group_id)
+{
+    auto user_groups = getUserGroups(user_id);
+    for (const auto& group : user_groups)
+    {
+        if (group.first == group_id)
+        {
+            return true;
+        }
+    }
+    return false;
 }

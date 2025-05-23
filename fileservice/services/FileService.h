@@ -36,6 +36,9 @@ public:
     bool deleteFolder(const std::string& user_id, int folder_id, std::string &errorMsg);
     std::vector<ExtendedFolderInfo> getExtendedFolders(const std::string& user_id, int parent_folder_id = -1);
 
+    std::vector<std::pair<int, std::string>> getUserGroups(const std::string& user_id);
+    bool isUserInGroup(const std::string& user_id, int group_id);
+
 private:
     std::shared_ptr<DB> db_;
     std::string storagePath_;

@@ -42,6 +42,7 @@ public:
     void createFolder(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
     void deleteFolder(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int folder_id);
 
+    // Методы для работы с общими файлами.
     void getUserGroups(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
     void uploadSharedFile(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
     void createSharedFolder(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);

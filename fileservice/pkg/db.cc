@@ -1136,7 +1136,7 @@ std::vector<ExtendedFileInfo> DB::getExtendedFiles(const std::string& user_id, i
             JOIN users u ON f.user_id = u.user_id
             LEFT JOIN groups g ON f.group_id = g.group_id
             WHERE f.folder_id IS NULL
-              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"()))
+              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"())
             ORDER BY f.file_type DESC, f.file_id;
         )";
     }
@@ -1152,7 +1152,7 @@ std::vector<ExtendedFileInfo> DB::getExtendedFiles(const std::string& user_id, i
             JOIN users u ON f.user_id = u.user_id
             LEFT JOIN groups g ON f.group_id = g.group_id
             WHERE f.folder_id = $2
-              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"()))
+              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"())
             ORDER BY f.file_type DESC, f.file_id;
         )";
         std::string folderIdStr = std::to_string(folder_id);
@@ -1218,7 +1218,7 @@ std::vector<ExtendedFolderInfo> DB::getExtendedFolders(const std::string& user_i
             JOIN users u ON f.user_id = u.user_id
             LEFT JOIN groups g ON f.group_id = g.group_id
             WHERE f.parent_folder_id IS NULL
-              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"()))
+              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"())
             ORDER BY f.folder_type DESC, f.folder_id;
         )";
     }
@@ -1234,7 +1234,7 @@ std::vector<ExtendedFolderInfo> DB::getExtendedFolders(const std::string& user_i
             JOIN users u ON f.user_id = u.user_id
             LEFT JOIN groups g ON f.group_id = g.group_id
             WHERE f.parent_folder_id = $2
-              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"()))
+              AND (f.user_id = $1 OR f.group_id IN ()" + group_list + R"())
             ORDER BY f.folder_type DESC, f.folder_id;
         )";
         std::string parentIdStr = std::to_string(parent_folder_id);
@@ -1289,7 +1289,7 @@ bool DB::canUserAccessFile(const std::string& user_id, int file_id)
     std::string query = R"(
         SELECT 1 FROM files
         WHERE file_id = $1
-          AND (user_id = $2 OR group_id IN ()" + group_list + R"()))
+          AND (user_id = $2 OR group_id IN ()" + group_list + R"())
         LIMIT 1;
     )";
 
@@ -1353,7 +1353,7 @@ bool DB::canUserAccessFolder(const std::string& user_id, int folder_id)
     std::string query = R"(
         SELECT 1 FROM folders
         WHERE folder_id = $1
-          AND (user_id = $2 OR group_id IN ()" + group_list + R"()))
+          AND (user_id = $2 OR group_id IN ()" + group_list + R"())
         LIMIT 1;
     )";
 
@@ -1498,5 +1498,162 @@ bool DB::createSharedFolder(const std::string& user_id, const std::string& folde
     }
 
     PQclear(res);
+    return true;
+}
+
+std::vector<std::pair<int, std::string>> DB::getUserGroups(int user_id)
+{
+    std::vector<std::pair<int, std::string>> groups;
+    if (!conn_) return groups;
+
+    std::string query = R"(
+        SELECT g.group_id, g.group_name
+        FROM groups g
+        INNER JOIN user_groups ug ON g.group_id = ug.group_id
+        WHERE ug.user_id = $1
+        ORDER BY g.group_id;
+    )";
+
+    const char* paramValues[1];
+    std::string userIdStr = std::to_string(user_id);
+    paramValues[0] = userIdStr.c_str();
+
+    PGresult* res = PQexecParams(conn_, query.c_str(), 1, nullptr, paramValues, nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        std::cerr << "Failed to get user groups: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(res);
+        return groups;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i)
+    {
+        int group_id = std::stoi(PQgetvalue(res, i, 0));
+        std::string group_name = PQgetvalue(res, i, 1);
+        groups.emplace_back(group_id, group_name);
+    }
+
+    PQclear(res);
+    return groups;
+}
+
+bool DB::syncUserGroups(int user_id, const std::vector<std::pair<int, std::string>>& groups)
+{
+    if (!conn_) return false;
+
+    // Начинаем транзакцию
+    PGresult* transRes = PQexec(conn_, "BEGIN");
+    if (PQresultStatus(transRes) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to start transaction: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(transRes);
+        return false;
+    }
+    PQclear(transRes);
+
+    // Удаляем все старые связи пользователя с группами
+    std::string deleteQuery = "DELETE FROM user_groups WHERE user_id = $1;";
+    const char* deleteParams[1];
+    std::string userIdStr = std::to_string(user_id);
+    deleteParams[0] = userIdStr.c_str();
+
+    PGresult* deleteRes = PQexecParams(conn_, deleteQuery.c_str(), 1, nullptr, deleteParams, nullptr, nullptr, 0);
+    if (PQresultStatus(deleteRes) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to delete old user groups: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(deleteRes);
+        PQexec(conn_, "ROLLBACK");
+        return false;
+    }
+    PQclear(deleteRes);
+
+    // Добавляем новые связи
+    for (const auto& group : groups)
+    {
+        std::string insertQuery = R"(
+            INSERT INTO user_groups (user_id, group_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING;
+        )";
+
+        const char* insertParams[2];
+        std::string groupIdStr = std::to_string(group.first);
+        insertParams[0] = userIdStr.c_str();
+        insertParams[1] = groupIdStr.c_str();
+
+        PGresult* insertRes = PQexecParams(conn_, insertQuery.c_str(), 2, nullptr, insertParams, nullptr, nullptr, 0);
+        if (PQresultStatus(insertRes) != PGRES_COMMAND_OK)
+        {
+            std::cerr << "Failed to insert user group: " << PQerrorMessage(conn_) << std::endl;
+            PQclear(insertRes);
+            PQexec(conn_, "ROLLBACK");
+            return false;
+        }
+        PQclear(insertRes);
+    }
+
+    // Коммитим транзакцию
+    PGresult* commitRes = PQexec(conn_, "COMMIT");
+    if (PQresultStatus(commitRes) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to commit transaction: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(commitRes);
+        return false;
+    }
+    PQclear(commitRes);
+
+    return true;
+}
+
+bool DB::syncAllGroups(const std::vector<std::pair<int, std::string>>& groups)
+{
+    if (!conn_) return false;
+
+    // Начинаем транзакцию
+    PGresult* transRes = PQexec(conn_, "BEGIN");
+    if (PQresultStatus(transRes) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to start transaction: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(transRes);
+        return false;
+    }
+    PQclear(transRes);
+
+    // Обновляем или вставляем группы
+    for (const auto& group : groups)
+    {
+        std::string upsertQuery = R"(
+            INSERT INTO groups (group_id, group_name)
+            VALUES ($1, $2)
+            ON CONFLICT (group_id) DO UPDATE SET
+                group_name = EXCLUDED.group_name;
+        )";
+
+        const char* params[2];
+        std::string groupIdStr = std::to_string(group.first);
+        params[0] = groupIdStr.c_str();
+        params[1] = group.second.c_str();
+
+        PGresult* res = PQexecParams(conn_, upsertQuery.c_str(), 2, nullptr, params, nullptr, nullptr, 0);
+        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        {
+            std::cerr << "Failed to sync group: " << PQerrorMessage(conn_) << std::endl;
+            PQclear(res);
+            PQexec(conn_, "ROLLBACK");
+            return false;
+        }
+        PQclear(res);
+    }
+
+    PGresult* commitRes = PQexec(conn_, "COMMIT");
+    if (PQresultStatus(commitRes) != PGRES_COMMAND_OK)
+    {
+        std::cerr << "Failed to commit transaction: " << PQerrorMessage(conn_) << std::endl;
+        PQclear(commitRes);
+        return false;
+    }
+    PQclear(commitRes);
+
     return true;
 }

@@ -81,6 +81,10 @@ public:
     std::vector<std::pair<std::string, int>> getFileTypeDistribution();
     std::vector<std::tuple<std::string, std::string, long long>> getTopUsersByStorage(int limit = 5);
 
+    // Group methods
+    std::vector<std::pair<int, std::string>> getUserGroups(int user_id);
+    bool syncUserGroups(int user_id, const std::vector<std::pair<int, std::string>>& groups);
+    bool syncAllGroups(const std::vector<std::pair<int, std::string>>& groups);
 private:
     // Приватный конструктор
     DB(const std::string& host, const std::string& port,

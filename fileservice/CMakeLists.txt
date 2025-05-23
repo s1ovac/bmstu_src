@@ -10,6 +10,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_definitions(-DDROGON_NO_SQLITE3)
 
 # Находим необходимые пакеты
+find_package(OpenSSL REQUIRED)
 find_package(Drogon REQUIRED)
 find_package(PostgreSQL REQUIRED)
 
@@ -73,20 +74,3 @@ endif()
 
 # Если у вас есть представления (views) в Drogon
 drogon_create_views(fileservice ${CMAKE_CURRENT_SOURCE_DIR}/views ${CMAKE_CURRENT_BINARY_DIR})
-
-# Если необходимо, используйте aux_source_directory для дополнительных исходников
-# aux_source_directory(controllers CTL_SRC)
-# aux_source_directory(filters FILTER_SRC)
-# aux_source_directory(plugins PLUGIN_SRC)
-# aux_source_directory(models MODEL_SRC)
-
-# Добавляем исходные файлы из директорий
-# target_sources(fileservice PRIVATE
-#     ${CTL_SRC}
-#     ${FILTER_SRC}
-#     ${PLUGIN_SRC}
-#     ${MODEL_SRC}
-# )
-
-# Удалите или раскомментируйте следующие строки, если у вас есть тесты
-# add_subdirectory(test)

@@ -386,3 +386,144 @@ void FileController::deleteFolder(const HttpRequestPtr &req, std::function<void(
     resp->setStatusCode(k204NoContent);
     callback(resp);
 }
+
+void FileController::getUserGroups(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    std::string user_id = req->attributes()->get<std::string>("user_id");
+
+    LOG_INFO << "Processing 'getUserGroups' request for user_id: " << user_id;
+
+    auto groups = fileService_->getUserGroups(user_id);
+
+    Json::Value data;
+    data["groups"] = Json::arrayValue;
+
+    for (const auto& group : groups)
+    {
+        Json::Value groupJson;
+        groupJson["group_id"] = group.first;
+        groupJson["group_name"] = group.second;
+        data["groups"].append(groupJson);
+    }
+
+    auto resp = HttpResponse::newHttpJsonResponse(data);
+    callback(resp);
+}
+
+void FileController::uploadSharedFile(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    std::string user_id = req->attributes()->get<std::string>("user_id");
+    int folder_id = req->getOptionalParameter<int>("folder_id").value_or(0);
+    int group_id = req->getOptionalParameter<int>("group_id").value_or(0);
+
+    if (group_id == 0)
+    {
+        LOG_ERROR << "group_id is required for shared file upload";
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setStatusCode(k400BadRequest);
+        resp->setBody("group_id parameter is required for shared file upload");
+        callback(resp);
+        return;
+    }
+
+    LOG_INFO << "Processing 'uploadSharedFile' request for user_id: " << user_id
+             << ", folder_id: " << folder_id << ", group_id: " << group_id;
+
+    // Проверяем, что пользователь состоит в группе
+    if (!fileService_->isUserInGroup(user_id, group_id))
+    {
+        LOG_ERROR << "User " << user_id << " is not a member of group " << group_id;
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setStatusCode(k403Forbidden);
+        resp->setBody("You are not a member of this group");
+        callback(resp);
+        return;
+    }
+
+    std::string errorMsg;
+    if (!fileService_->uploadFile(user_id, folder_id, req, errorMsg, group_id))
+    {
+        LOG_ERROR << "Shared file upload failed for user_id: " << user_id << " with error: " << errorMsg;
+        auto resp = HttpResponse::newHttpResponse();
+
+        if (errorMsg.find("Invalid filename:") != std::string::npos) {
+            resp->setStatusCode(k400BadRequest);
+        } else if (errorMsg.find("Permission denied") != std::string::npos) {
+            resp->setStatusCode(k403Forbidden);
+        } else {
+            resp->setStatusCode(k500InternalServerError);
+        }
+
+        resp->setBody(errorMsg);
+        callback(resp);
+        return;
+    }
+
+    Json::Value respData;
+    respData["message"] = "Shared file uploaded successfully";
+    respData["shared"] = true;
+    respData["group_id"] = group_id;
+    auto resp = HttpResponse::newHttpJsonResponse(respData);
+    callback(resp);
+}
+
+void FileController::createSharedFolder(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    std::string user_id = req->attributes()->get<std::string>("user_id");
+    auto json = req->getJsonObject();
+
+    if (!json || !(*json)["folder_name"].isString() || !(*json)["group_id"].isInt())
+    {
+        LOG_ERROR << "Invalid JSON in request for creating shared folder for user_id: " << user_id;
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setStatusCode(k400BadRequest);
+        resp->setBody("Invalid JSON: 'folder_name' and 'group_id' are required");
+        callback(resp);
+        return;
+    }
+
+    std::string folder_name = (*json)["folder_name"].asString();
+    int parent_folder_id = (*json).get("parent_folder_id", 0).asInt();
+    int group_id = (*json)["group_id"].asInt();
+
+    LOG_INFO << "Processing 'createSharedFolder' request for user_id: " << user_id
+             << ", folder_name: " << folder_name << ", parent_folder_id: " << parent_folder_id
+             << ", group_id: " << group_id;
+
+    // Проверяем, что пользователь состоит в группе
+    if (!fileService_->isUserInGroup(user_id, group_id))
+    {
+        LOG_ERROR << "User " << user_id << " is not a member of group " << group_id;
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setStatusCode(k403Forbidden);
+        resp->setBody("You are not a member of this group");
+        callback(resp);
+        return;
+    }
+
+    std::string errorMsg;
+    if (!fileService_->createFolder(user_id, folder_name, parent_folder_id, errorMsg, group_id))
+    {
+        LOG_ERROR << "Failed to create shared folder for user_id: " << user_id << " with error: " << errorMsg;
+        auto resp = HttpResponse::newHttpResponse();
+
+        if (errorMsg.find("Invalid folder name:") != std::string::npos) {
+            resp->setStatusCode(k400BadRequest);
+        } else if (errorMsg.find("Permission denied") != std::string::npos) {
+            resp->setStatusCode(k403Forbidden);
+        } else {
+            resp->setStatusCode(k500InternalServerError);
+        }
+
+        resp->setBody(errorMsg);
+        callback(resp);
+        return;
+    }
+
+    Json::Value respData;
+    respData["message"] = "Shared folder created successfully";
+    respData["shared"] = true;
+    respData["group_id"] = group_id;
+    auto resp = HttpResponse::newHttpJsonResponse(respData);
+    callback(resp);
+}
