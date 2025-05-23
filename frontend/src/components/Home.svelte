@@ -96,6 +96,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a href="/?shared=true" class="nav-link">
+                            <i class="material-icons">group</i>
+                            <span>Общие файлы</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="/" class="nav-link">
                             <i class="material-icons">star</i>
                             <span>Избранное</span>

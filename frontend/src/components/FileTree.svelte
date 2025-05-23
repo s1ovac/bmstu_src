@@ -12,6 +12,9 @@
         deleteFolder,
         moveFile,
         moveFiles,
+        getUserGroups,
+        createSharedFolder,
+        uploadSharedFile,
     } from '../lib/api.js';
 
     // Основные хранилища данных
@@ -37,6 +40,10 @@
     let allFolders = writable([]);  // Хранилище для всех папок (для выбора при перемещении)
     let targetFolderId = 0;  // ID папки, куда перемещаем
     let isFoldersLoading = false;
+    let userGroups = writable([]);
+    let selectedGroupId = null;
+    let showSharedMode = false;
+    let filterByGroup = null;
 
     // Функция для загрузки всех папок (для диалога перемещения)
     const fetchAllFolders = async () => {
@@ -144,6 +151,12 @@
         }
     );
 
+    $: displayedFiles = filterByGroup
+        ? $filteredFiles.filter(file => file.group_id === filterByGroup)
+        : $filteredFiles;
+
+    $: displayedFolders = $filteredFolders;
+
     const filteredFiles = derived(
         [filesList, searchQuery],
         ([$filesList, $searchQuery]) => {
@@ -214,8 +227,22 @@
         return iconMap[extension] || 'insert_drive_file';
     };
 
+    const getTypeLabel = (fileType) => {
+        return fileType === 'shared' ? 'Общий' : 'Личный';
+    };
+
+    const getTypeIcon = (fileType) => {
+        return fileType === 'shared' ? 'group' : 'person';
+    };
+
     onMount(async () => {
         console.log("FileTree component mounted");
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('shared') === 'true') {
+            showSharedMode = true;
+        }
+
+        await fetchUserGroups();
         await fetchData();
         console.log("Initial data loaded");
 
@@ -242,7 +269,11 @@
                         isUploading = true;
                         const token = JSON.parse(localStorage.getItem('user')).token;
                         for (let i = 0; i < e.dataTransfer.files.length; i++) {
-                            await uploadFile(token, currentFolderId, e.dataTransfer.files[i]);
+                            if (showSharedMode && selectedGroupId) {
+                                await uploadSharedFile(token, selectedGroupId, currentFolderId, e.dataTransfer.files[i]);
+                            } else {
+                                await uploadFile(token, currentFolderId, e.dataTransfer.files[i]);
+                            }
                         }
                         success.set('Файлы успешно загружены');
                         setTimeout(() => success.set(null), 3000);
@@ -259,6 +290,16 @@
             console.warn("Drop zone element not found");
         }
     });
+
+    const fetchUserGroups = async () => {
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            const response = await getUserGroups(token);
+            userGroups.set(response.groups || []);
+        } catch (err) {
+            console.error('Error fetching user groups:', err);
+        }
+    };
 
     const fetchData = async () => {
         loading.set(true);
@@ -321,7 +362,11 @@
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
             for (let i = 0; i < filesToUpload.length; i++) {
-                await uploadFile(token, currentFolderId, filesToUpload[i]);
+                if (showSharedMode && selectedGroupId) {
+                    await uploadSharedFile(token, selectedGroupId, currentFolderId, filesToUpload[i]);
+                } else {
+                    await uploadFile(token, currentFolderId, filesToUpload[i]);
+                }
             }
             uploadInput.value = '';
             success.set('Файлы успешно загружены');
@@ -407,7 +452,11 @@
         loading.set(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            await createFolder(token, newFolderName, currentFolderId);
+            if (showSharedMode && selectedGroupId) {
+                await createSharedFolder(token, newFolderName, selectedGroupId, currentFolderId);
+            } else {
+                await createFolder(token, newFolderName, currentFolderId);
+            }
             newFolderName = '';
             showNewFolderDialog = false;
             success.set('Папка создана');
@@ -566,6 +615,40 @@
         </div>
     </div>
 
+    <!-- Панель фильтров -->
+    {#if $userGroups.length > 0}
+        <div class="filter-bar">
+            <div class="mode-toggle">
+                <label>
+                    <input type="checkbox" bind:checked={showSharedMode}>
+                    <span>Режим общих файлов</span>
+                </label>
+            </div>
+
+            {#if showSharedMode}
+                <div class="group-selector">
+                    <label>Группа:</label>
+                    <select bind:value={selectedGroupId}>
+                        <option value={null}>Выберите группу</option>
+                        {#each $userGroups as group}
+                            <option value={group.group_id}>{group.group_name}</option>
+                        {/each}
+                    </select>
+                </div>
+            {/if}
+
+            <div class="filter-selector">
+                <label>Показать:</label>
+                <select bind:value={filterByGroup}>
+                    <option value={null}>Все файлы</option>
+                    {#each $userGroups as group}
+                        <option value={group.group_id}>Только {group.group_name}</option>
+                    {/each}
+                </select>
+            </div>
+        </div>
+    {/if}
+
     <!-- Панель действий -->
     <div class="actions-bar">
         <div class="actions-left">
@@ -723,12 +806,12 @@
             {/if}
 
             <!-- Файлы -->
-            {#if $filteredFiles.length > 0}
+            {#if displayedFiles.length > 0}
                 {#if viewMode === 'grid'}
                     <div class="grid-container">
-                        {#each $filteredFiles as file (file.file_id)}
+                        {#each displayedFiles as file (file.file_id)}
                             <div
-                                    class="grid-item file-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''}"
+                                    class="grid-item file-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''} {file.file_type === 'shared' ? 'shared-item' : ''}"
                                     on:click={() => handleDownload(file.file_id, file.file_name)}
                             >
                                 <div class="item-checkbox" on:click|stopPropagation>
@@ -736,22 +819,40 @@
                                             type="checkbox"
                                             checked={isItemSelected({id: file.file_id, type: 'file'})}
                                             on:change={(e) => toggleItemSelection({id: file.file_id, type: 'file', name: file.file_name}, e)}
+                                            disabled={file.file_type === 'shared' && !file.can_modify}
                                     />
                                 </div>
+                                {#if file.file_type === 'shared'}
+                                    <div class="shared-indicator" title="Общий файл">
+                                        <i class="material-icons">{getTypeIcon(file.file_type)}</i>
+                                    </div>
+                                {/if}
                                 <div class="item-icon">
                                     <i class="material-icons">{getFileIcon(file.file_name)}</i>
                                 </div>
                                 <div class="item-details">
                                     <div class="item-name" title={file.file_name}>{file.file_name}</div>
-                                    <div class="item-meta">{formatFileSize(file.file_size)} • {formatDate(file.created_at)}</div>
+                                    <div class="item-meta">
+                                        {formatFileSize(file.file_size)} • {formatDate(file.created_at)}
+                                        {#if file.file_type === 'shared'}
+                                            <div class="item-owner">
+                                                <i class="material-icons tiny">person</i>
+                                                {file.owner_email}
+                                            </div>
+                                            <div class="item-group">
+                                                <i class="material-icons tiny">group</i>
+                                                {file.group_name}
+                                            </div>
+                                        {/if}
+                                    </div>
                                 </div>
                             </div>
                         {/each}
                     </div>
                 {:else}
-                    {#each $filteredFiles as file (file.file_id)}
+                    {#each displayedFiles as file (file.file_id)}
                         <div
-                                class="list-row file-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''}"
+                                class="list-row file-item {isItemSelected({id: file.file_id, type: 'file'}) ? 'selected' : ''} {file.file_type === 'shared' ? 'shared-item' : ''}"
                                 on:click={() => handleDownload(file.file_id, file.file_name)}
                         >
                             <div class="list-cell checkbox-cell" on:click|stopPropagation>
@@ -759,15 +860,27 @@
                                         type="checkbox"
                                         checked={isItemSelected({id: file.file_id, type: 'file'})}
                                         on:change={(e) => toggleItemSelection({id: file.file_id, type: 'file', name: file.file_name}, e)}
+                                        disabled={file.file_type === 'shared' && !file.can_modify}
                                 />
                             </div>
                             <div class="list-cell name-cell">
                                 <i class="material-icons item-type-icon">{getFileIcon(file.file_name)}</i>
                                 <span>{file.file_name}</span>
+                                {#if file.file_type === 'shared'}
+                        <span class="shared-badge">
+                            <i class="material-icons tiny">{getTypeIcon(file.file_type)}</i>
+                            {file.group_name}
+                        </span>
+                                {/if}
                             </div>
                             <div class="list-cell date-cell">{formatDate(file.created_at)}</div>
                             <div class="list-cell size-cell">{formatFileSize(file.file_size)}</div>
                             <div class="list-cell actions-cell">
+                                {#if file.file_type === 'shared'}
+                        <span class="owner-info" title="Владелец: {file.owner_email}">
+                            <i class="material-icons tiny">person</i>
+                        </span>
+                                {/if}
                                 <button class="icon-button" on:click|stopPropagation={() => handleDownload(file.file_id, file.file_name)}>
                                     <i class="material-icons">download</i>
                                 </button>
@@ -839,12 +952,18 @@
     <div class="modal-overlay">
         <div class="modal-dialog">
             <div class="modal-header">
-                <h3>Создать новую папку</h3>
+                <h3>Создать {showSharedMode && selectedGroupId ? 'общую' : 'новую'} папку</h3>
                 <button class="close-button" on:click={() => showNewFolderDialog = false}>
                     <i class="material-icons">close</i>
                 </button>
             </div>
             <div class="modal-body">
+                {#if showSharedMode && selectedGroupId}
+                    <p class="shared-mode-info">
+                        <i class="material-icons">info</i>
+                        Папка будет создана для группы: <strong>{$userGroups.find(g => g.group_id === selectedGroupId)?.group_name}</strong>
+                    </p>
+                {/if}
                 <div class="form-group">
                     <label for="new-folder-name">Название папки</label>
                     <input
@@ -1232,6 +1351,7 @@
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
         grid-gap: 16px;
+        padding: 8px; /* Добавляем внутренний отступ */
     }
 
     .grid-item {
@@ -1668,6 +1788,148 @@
 
         .date-cell, .size-cell {
             display: none;
+        }
+
+        /* Панель фильтров */
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 12px 16px;
+            background-color: var(--bg-tertiary, #f8f9fa);
+            border-bottom: 1px solid var(--border-color, #e0e0e0);
+        }
+
+        .mode-toggle label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-primary, #202124);
+        }
+
+        .mode-toggle input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .group-selector, .filter-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .group-selector label, .filter-selector label {
+            font-size: 14px;
+            color: var(--text-secondary, #5f6368);
+        }
+
+        .group-selector select, .filter-selector select {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color, #dadce0);
+            border-radius: 4px;
+            background-color: var(--bg-primary, #ffffff);
+            font-size: 14px;
+            color: var(--text-primary, #202124);
+            cursor: pointer;
+        }
+
+        /* Стили для общих файлов */
+        .shared-item {
+            position: relative;
+            border: 1px solid rgba(52, 168, 83, 0.2);
+            background-color: rgba(52, 168, 83, 0.05);
+        }
+
+        .shared-indicator {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background-color: #34a853;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .shared-indicator i {
+            font-size: 14px;
+        }
+
+        .item-owner, .item-group {
+            display: flex;
+            align-items: center;
+            font-size: 11px;
+            color: var(--text-secondary, #5f6368);
+            margin-top: 2px;
+        }
+
+        .item-owner i, .item-group i {
+            font-size: 12px;
+            margin-right: 4px;
+        }
+
+        .shared-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 8px;
+            padding: 2px 8px;
+            background-color: #34a853;
+            color: white;
+            border-radius: 12px;
+            font-size: 11px;
+        }
+
+        .owner-info {
+            color: var(--text-secondary, #5f6368);
+            margin-right: 8px;
+        }
+
+        i.tiny {
+            font-size: 14px !important;
+        }
+
+        /* Отключенные элементы */
+        input[type="checkbox"]:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Адаптивность для панели фильтров */
+        @media (max-width: 768px) {
+            .filter-bar {
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+
+            .group-selector, .filter-selector {
+                width: 100%;
+            }
+
+            .group-selector select, .filter-selector select {
+                width: 100%;
+            }
+        }
+        .shared-mode-info {
+            display: flex;
+            align-items: center;
+            background-color: #e6f4ea;
+            color: #1e8e3e;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .shared-mode-info i {
+            margin-right: 8px;
+        }
+
+        .shared-mode-info strong {
+            font-weight: 600;
         }
     }
 </style>

@@ -38,8 +38,12 @@
         }
     };
 
-    const getFileIcon = (fileName) => {
+    const getFileIcon = (fileName, fileType) => {
         if (!fileName) return 'insert_drive_file';
+
+        if (fileType === 'shared') {
+            return 'folder_shared';
+        }
 
         const extension = fileName.split('.').pop().toLowerCase();
 
@@ -481,6 +485,7 @@
                                             <thead>
                                             <tr>
                                                 <th>Название</th>
+                                                <th>Тип</th>
                                                 <th>Размер</th>
                                                 <th>Папка</th>
                                                 <th>Дата создания</th>
@@ -491,9 +496,14 @@
                                                 <tr>
                                                     <td>
                                                         <div class="file-name">
-                                                            <i class="material-icons">{getFileIcon(file.file_name)}</i>
+                                                            <i class="material-icons">{getFileIcon(file.file_name, file.file_type)}</i>
                                                             {file.file_name}
                                                         </div>
+                                                    </td>
+                                                    <td>
+                                                        <span class="file-type-badge {file.file_type}">
+                                                            {file.file_type === 'shared' ? 'Общий' : 'Личный'}
+                                                        </span>
                                                     </td>
                                                     <td>{formatFileSize(file.file_size)}</td>
                                                     <td>
@@ -1109,6 +1119,24 @@
             flex: 1;
             min-width: 120px;
             justify-content: center;
+        }
+        /* Бейдж типа файла */
+        .file-type-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .file-type-badge.shared {
+            background-color: #e6f4ea;
+            color: #1e8e3e;
+        }
+
+        .file-type-badge:not(.shared) {
+            background-color: #e8f0fe;
+            color: #1a73e8;
         }
     }
 </style>
