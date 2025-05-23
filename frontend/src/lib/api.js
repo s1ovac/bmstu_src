@@ -492,3 +492,62 @@ export const changePassword = async (token, currentPassword, newPassword) => {
         throw error;
     }
 };
+
+export const getUserGroups = async (token) => {
+    try {
+        const response = await fetch(`${FILE_BASE_URL}/api/v1/user/groups`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch user groups');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error in getUserGroups:', error);
+        throw error;
+    }
+};
+
+export const createSharedFolder = async (token, folderName, groupId, parentFolderId = 0) => {
+    const response = await fetch(`${FILE_BASE_URL}/api/v1/folders/shared`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            folder_name: folderName,
+            group_id: groupId,
+            parent_folder_id: parentFolderId
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to create shared folder');
+    }
+
+    return await response.json();
+};
+
+export const uploadSharedFile = async (token, groupId, folderId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${FILE_BASE_URL}/api/v1/files/shared?group_id=${groupId}&folder_id=${folderId}`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        body: formData
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to upload shared file');
+    }
+
+    return await response.json();
+};
