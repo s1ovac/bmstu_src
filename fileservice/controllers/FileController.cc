@@ -266,31 +266,31 @@ void FileController::downloadFile(const HttpRequestPtr &req, std::function<void(
 
 // Методы для работы с папками
 void FileController::getFolders(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
-    {
+{
     try {
         std::string user_id = req->attributes()->get<std::string>("user_id");
         int parent_folder_id = req->getOptionalParameter<int>("parent_folder_id").value_or(0);
 
         LOG_INFO << "Processing 'getFolders' request for user_id: " << user_id << ", parent_folder_id: " << parent_folder_id;
 
-        auto folders = fileService_->getFolders(user_id, parent_folder_id);
+        auto folders = fileService_->getExtendedFolders(user_id, parent_folder_id);
 
         Json::Value data;
         data["folders"] = Json::arrayValue;
 
         for (const auto& folder : folders)
         {
-            int folder_id;
-            std::string folder_name;
-            int parent_id;
-            std::string created_at;
-            std::tie(folder_id, folder_name, parent_id, created_at) = folder;
-
             Json::Value folderJson;
-            folderJson["folder_id"] = folder_id;
-            folderJson["folder_name"] = folder_name;
-            folderJson["parent_folder_id"] = parent_id;
-            folderJson["created_at"] = created_at;
+            folderJson["folder_id"] = folder.folder_id;
+            folderJson["folder_name"] = folder.folder_name;
+            folderJson["parent_folder_id"] = folder.parent_folder_id;
+            folderJson["created_at"] = folder.created_at;
+            folderJson["folder_type"] = folder.folder_type;
+            folderJson["owner_id"] = folder.owner_id;
+            folderJson["owner_email"] = folder.owner_email;
+            folderJson["group_id"] = folder.group_id;
+            folderJson["group_name"] = folder.group_name;
+            folderJson["can_modify"] = (folder.owner_id == std::stoi(user_id));
             data["folders"].append(folderJson);
         }
 
