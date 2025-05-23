@@ -9,6 +9,8 @@
     let userEmail = '';
     let isMobileSidebarOpen = false;
     let darkMode = false;
+    let currentPath = '';
+    let isSharedMode = false;
 
     onMount(async () => {
         userEmail = $emailStore;
@@ -28,7 +30,19 @@
             darkMode = storedTheme === "dark";
             updateTheme();
         }
+
+        // Check current URL parameters
+        checkCurrentPath();
+
+        // Listen for URL changes
+        window.addEventListener('popstate', checkCurrentPath);
     });
+
+    const checkCurrentPath = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        isSharedMode = urlParams.get('shared') === 'true';
+        currentPath = window.location.pathname + window.location.search;
+    };
 
     const onLogoutClick = () => {
         userRoles.set([]);
@@ -54,6 +68,13 @@
         } else {
             document.body.classList.remove('dark-mode');
         }
+    };
+
+    const navigateToPath = (path) => {
+        window.history.pushState(null, '', path);
+        checkCurrentPath();
+        // Close mobile sidebar after navigation
+        isMobileSidebarOpen = false;
     };
 </script>
 
@@ -89,35 +110,35 @@
             <div class="sidebar-section">
                 <h3>Хранилище</h3>
                 <ul class="nav-items">
-                    <li class="nav-item active">
-                        <a href="/" class="nav-link">
+                    <li class="nav-item {currentPath === '/' ? 'active' : ''}">
+                        <button class="nav-link" on:click={() => navigateToPath('/')}>
                             <i class="material-icons">cloud</i>
                             <span>Мой диск</span>
-                        </a>
+                        </button>
                     </li>
-                    <li class="nav-item">
-                        <a href="/?shared=true" class="nav-link">
+                    <li class="nav-item {isSharedMode ? 'active' : ''}">
+                        <button class="nav-link" on:click={() => navigateToPath('/?shared=true')}>
                             <i class="material-icons">group</i>
                             <span>Общие файлы</span>
-                        </a>
+                        </button>
                     </li>
                     <li class="nav-item">
-                        <a href="/" class="nav-link">
+                        <button class="nav-link" on:click={() => navigateToPath('/?favorites=true')}>
                             <i class="material-icons">star</i>
                             <span>Избранное</span>
-                        </a>
+                        </button>
                     </li>
                     <li class="nav-item">
-                        <a href="/" class="nav-link">
+                        <button class="nav-link" on:click={() => navigateToPath('/?recent=true')}>
                             <i class="material-icons">access_time</i>
                             <span>Недавние</span>
-                        </a>
+                        </button>
                     </li>
                     <li class="nav-item">
-                        <a href="/" class="nav-link">
+                        <button class="nav-link" on:click={() => navigateToPath('/?trash=true')}>
                             <i class="material-icons">delete</i>
                             <span>Корзина</span>
-                        </a>
+                        </button>
                     </li>
                 </ul>
             </div>
@@ -180,7 +201,7 @@
         <!-- Основной контент -->
         <main class="main-content">
             <div class="content-container">
-                <FileTree />
+                <FileTree sharedMode={isSharedMode} />
             </div>
         </main>
     </div>
