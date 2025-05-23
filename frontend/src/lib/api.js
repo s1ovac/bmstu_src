@@ -551,3 +551,100 @@ export const uploadSharedFile = async (token, groupId, folderId, file) => {
 
     return await response.json();
 };
+
+export const toggleFileFavorite = async (token, fileId, isFavorite) => {
+    const response = await fetch(`${FILE_BASE_URL}/api/v1/favorites/file`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            file_id: fileId,
+            is_favorite: isFavorite
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to toggle file favorite');
+    }
+
+    return await response.json();
+};
+
+export const toggleFolderFavorite = async (token, folderId, isFavorite) => {
+    const response = await fetch(`${FILE_BASE_URL}/api/v1/favorites/folder`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            folder_id: folderId,
+            is_favorite: isFavorite
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to toggle folder favorite');
+    }
+
+    return await response.json();
+};
+
+export const getFavoriteFiles = async (token) => {
+    try {
+        const response = await fetch(`${FILE_BASE_URL}/api/v1/favorites/files`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch favorite files');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error in getFavoriteFiles:', error);
+        throw error;
+    }
+};
+
+export const getFavoriteFolders = async (token) => {
+    try {
+        const response = await fetch(`${FILE_BASE_URL}/api/v1/favorites/folders`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch favorite folders');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error in getFavoriteFolders:', error);
+        throw error;
+    }
+};
+
+export const getAllFavorites = async (token) => {
+    try {
+        const response = await fetch(`${FILE_BASE_URL}/api/v1/favorites`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch favorites');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error in getAllFavorites:', error);
+        throw error;
+    }
+};
