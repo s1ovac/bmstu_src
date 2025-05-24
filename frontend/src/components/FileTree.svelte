@@ -16,6 +16,8 @@
         createSharedFolder,
         uploadSharedFile,
         getAllFavorites,
+        toggleFileFavorite,
+        toggleFolderFavorite,
     } from '../lib/api.js';
 
     export let sharedMode = false;
@@ -46,6 +48,31 @@
     let isFoldersLoading = false;
     let userGroups = writable([]);
     let selectedGroupId = null;
+
+    // Функция для переключения избранного
+    const toggleFavorite = async (item, type, event) => {
+        if (event) event.stopPropagation();
+
+        try {
+            const token = JSON.parse(localStorage.getItem('user')).token;
+            const isCurrentlyFavorite = item.is_favorite || false;
+
+            if (type === 'file') {
+                await toggleFileFavorite(token, item.file_id, !isCurrentlyFavorite);
+            } else {
+                await toggleFolderFavorite(token, item.folder_id, !isCurrentlyFavorite);
+            }
+
+            success.set(isCurrentlyFavorite ? 'Удалено из избранного' : 'Добавлено в избранное');
+            setTimeout(() => success.set(null), 3000);
+
+            // Обновляем данные
+            await fetchData();
+        } catch (err) {
+            error.set('Ошибка при изменении избранного: ' + err.message);
+            setTimeout(() => error.set(null), 3000);
+        }
+    };
 
     // Функция для загрузки всех папок (для диалога перемещения)
     const fetchAllFolders = async () => {
@@ -731,6 +758,13 @@
                                         on:change={(e) => toggleItemSelection({id: folder.folder_id, type: 'folder', name: folder.folder_name}, e)}
                                 />
                             </div>
+                            <button
+                                    class="favorite-button {folder.is_favorite ? 'active' : ''}"
+                                    on:click={(e) => toggleFavorite(folder, 'folder', e)}
+                                    title={folder.is_favorite ? 'Удалить из избранного' : 'Добавить в избранное'}
+                            >
+                                <i class="material-icons">{folder.is_favorite ? 'star' : 'star_border'}</i>
+                            </button>
                             {#if folder.folder_type === 'shared'}
                                 <div class="shared-indicator" title="Общая папка">
                                     <i class="material-icons">group</i>
@@ -759,6 +793,13 @@
                                         on:change={(e) => toggleItemSelection({id: file.file_id, type: 'file', name: file.file_name}, e)}
                                 />
                             </div>
+                            <button
+                                    class="favorite-button {file.is_favorite ? 'active' : ''}"
+                                    on:click={(e) => toggleFavorite(file, 'file', e)}
+                                    title={file.is_favorite ? 'Удалить из избранного' : 'Добавить в избранное'}
+                            >
+                                <i class="material-icons">{file.is_favorite ? 'star' : 'star_border'}</i>
+                            </button>
                             {#if file.file_type === 'shared'}
                                 <div class="shared-indicator" title="Общий файл">
                                     <i class="material-icons">group</i>
@@ -1341,11 +1382,6 @@
         box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28);
     }
 
-    .grid-item.selected {
-        background-color: rgba(26, 115, 232, 0.08);
-        box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28);
-    }
-
     .grid-item:active {
         transform: scale(0.98);
     }
@@ -1759,6 +1795,51 @@
 
     i.tiny {
         font-size: 14px !important;
+    }
+
+    /* Кнопка избранного */
+    .favorite-button {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 28px;
+        height: 28px;
+        background-color: transparent;
+        border: none;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s, transform 0.1s;
+        z-index: 10;
+    }
+
+    .favorite-button:hover {
+        transform: scale(1.1);
+    }
+
+    .favorite-button.active {
+        opacity: 1;
+    }
+
+    .grid-item:hover .favorite-button {
+        opacity: 1;
+    }
+
+    .favorite-button i {
+        font-size: 20px;
+        color: #9aa0a6;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .favorite-button.active i {
+        color: #fbc02d;
+    }
+
+    .favorite-button:hover i {
+        color: #fbc02d;
     }
 
     /* Адаптивность */
