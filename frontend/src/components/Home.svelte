@@ -11,6 +11,7 @@
     let darkMode = false;
     let currentPath = '';
     let isSharedMode = false;
+    let isFavoritesMode = false;
 
     onMount(async () => {
         userEmail = $emailStore;
@@ -41,6 +42,7 @@
     const checkCurrentPath = () => {
         const urlParams = new URLSearchParams(window.location.search);
         isSharedMode = urlParams.get('shared') === 'true';
+        isFavoritesMode = urlParams.get('favorites') === 'true';
         currentPath = window.location.pathname + window.location.search;
     };
 
@@ -122,7 +124,7 @@
                             <span>Общие файлы</span>
                         </button>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item {isFavoritesMode ? 'active' : ''}">
                         <button class="nav-link" on:click={() => navigateToPath('/?favorites=true')}>
                             <i class="material-icons">star</i>
                             <span>Избранное</span>
@@ -201,7 +203,7 @@
         <!-- Основной контент -->
         <main class="main-content">
             <div class="content-container">
-                <FileTree sharedMode={isSharedMode} />
+                <FileTree sharedMode={isSharedMode} favoritesMode={isFavoritesMode}/>
             </div>
         </main>
     </div>

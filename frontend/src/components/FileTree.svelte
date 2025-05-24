@@ -15,9 +15,11 @@
         getUserGroups,
         createSharedFolder,
         uploadSharedFile,
+        getAllFavorites,
     } from '../lib/api.js';
 
     export let sharedMode = false;
+    export let favoritesMode = false;
 
     // Основные хранилища данных
     const foldersList = writable([]);
@@ -261,27 +263,36 @@
         loading.set(true);
         try {
             const token = JSON.parse(localStorage.getItem('user')).token;
-            console.log(`Fetching data for folder ID: ${currentFolderId}, sharedMode: ${sharedMode}`);
 
-            const [folderResponse, fileResponse] = await Promise.all([
-                getFolders(token, currentFolderId),
-                getFileTree(token, currentFolderId)
-            ]);
-
-            let folders = folderResponse?.folders || [];
-            let files = fileResponse?.files || [];
-
-            // Фильтруем по режиму
-            if (sharedMode) {
-                folders = folders.filter(folder => folder.folder_type === 'shared');
-                files = files.filter(file => file.file_type === 'shared');
+            if (favoritesMode) {
+                // Загружаем только избранное
+                const favoritesResponse = await getAllFavorites(token);
+                foldersList.set(favoritesResponse.folders || []);
+                filesList.set(favoritesResponse.files || []);
             } else {
-                folders = folders.filter(folder => folder.folder_type === 'personal' || !folder.folder_type);
-                files = files.filter(file => file.file_type === 'personal' || !file.file_type);
+                console.log(`Fetching data for folder ID: ${currentFolderId}, sharedMode: ${sharedMode}`);
+
+                const [folderResponse, fileResponse] = await Promise.all([
+                    getFolders(token, currentFolderId),
+                    getFileTree(token, currentFolderId)
+                ]);
+
+                let folders = folderResponse?.folders || [];
+                let files = fileResponse?.files || [];
+
+                // Фильтруем по режиму
+                if (sharedMode) {
+                    folders = folders.filter(folder => folder.folder_type === 'shared');
+                    files = files.filter(file => file.file_type === 'shared');
+                } else {
+                    folders = folders.filter(folder => folder.folder_type === 'personal' || !folder.folder_type);
+                    files = files.filter(file => file.file_type === 'personal' || !file.file_type);
+                }
+
+                foldersList.set(folders);
+                filesList.set(files);
             }
 
-            foldersList.set(folders);
-            filesList.set(files);
             searchQuery.set('');
             selectedItems.set([]);
 
@@ -418,6 +429,11 @@
     };
 
     const navigateToFolder = (folderId, folderName) => {
+        if (favoritesMode) {
+            error.set('Навигация по папкам недоступна в режиме избранного');
+            setTimeout(() => error.set(null), 3000);
+            return;
+        }
         console.log(`Navigating to folder: ${folderName} (ID: ${folderId})`);
         folderStack.push({ id: currentFolderId, name: folderName });
         currentFolderId = folderId;
@@ -484,8 +500,14 @@
     $: selectedCount = $selectedItems.length;
     $: isEmptyContent = totalItems === 0;
     $: searchValue = $searchQuery;
-    $: pageTitle = sharedMode ? 'Общие файлы' : 'Мой диск';
-    $: pageIcon = sharedMode ? 'group' : 'cloud';
+    $: pageTitle = favoritesMode ? 'Избранное' : (sharedMode ? 'Общие файлы' : 'Мой диск');
+    $: pageIcon = favoritesMode ? 'star' : (sharedMode ? 'group' : 'cloud');
+
+    $: if (favoritesMode !== undefined) {
+        currentFolderId = 0;
+        folderStack = [];
+        fetchData();
+    }
 
     // Watch for sharedMode changes
     $: if (sharedMode !== undefined) {
@@ -536,31 +558,38 @@
     <!-- Панель инструментов -->
     <div class="toolbar">
         <div class="toolbar-left">
-            <div class="navigation-buttons">
-                <button class="icon-button" on:click={navigateBack} disabled={folderStack.length === 0} title="Назад">
-                    <i class="material-icons">arrow_back</i>
-                </button>
-                <button class="icon-button" on:click={navigateHome} disabled={currentFolderId === 0} title="Домой">
-                    <i class="material-icons">home</i>
-                </button>
-            </div>
+            {#if !favoritesMode}
+                <div class="navigation-buttons">
+                    <button class="icon-button" on:click={navigateBack} disabled={folderStack.length === 0} title="Назад">
+                        <i class="material-icons">arrow_back</i>
+                    </button>
+                    <button class="icon-button" on:click={navigateHome} disabled={currentFolderId === 0} title="Домой">
+                        <i class="material-icons">home</i>
+                    </button>
+                </div>
 
-            <div class="breadcrumb">
-                <span class="breadcrumb-item" on:click={navigateHome} title={pageTitle}>
+                <div class="breadcrumb">
+            <span class="breadcrumb-item" on:click={navigateHome} title={pageTitle}>
+                <i class="material-icons">{pageIcon}</i>
+                <span>{pageTitle}</span>
+            </span>
+                    {#each folderStack as folder, index}
+                        <i class="material-icons separator">chevron_right</i>
+                        <span class="breadcrumb-item" on:click={() => {
+                    currentFolderId = folder.id;
+                    folderStack = folderStack.slice(0, index + 1);
+                    fetchData();
+                }}>
+                    {folder.name}
+                </span>
+                    {/each}
+                </div>
+            {:else}
+                <div class="page-title-toolbar">
                     <i class="material-icons">{pageIcon}</i>
                     <span>{pageTitle}</span>
-                </span>
-                {#each folderStack as folder, index}
-                    <i class="material-icons separator">chevron_right</i>
-                    <span class="breadcrumb-item" on:click={() => {
-                        currentFolderId = folder.id;
-                        folderStack = folderStack.slice(0, index + 1);
-                        fetchData();
-                    }}>
-                        {folder.name}
-                    </span>
-                {/each}
-            </div>
+                </div>
+            {/if}
         </div>
 
         <div class="toolbar-right">
@@ -607,7 +636,7 @@
                         <span>Скачать</span>
                     </button>
                 {/if}
-            {:else}
+            {:else if !favoritesMode}
                 <button class="action-button upload-button" title="Загрузить файлы">
                     <i class="material-icons">cloud_upload</i>
                     <span>Загрузить файлы</span>
@@ -1780,6 +1809,19 @@
 
         .date-cell, .size-cell {
             display: none;
+        }
+        .page-title-toolbar {
+            display: flex;
+            align-items: center;
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-primary, #202124);
+        }
+
+        .page-title-toolbar i {
+            margin-right: 12px;
+            color: var(--accent-color, #1a73e8);
+            font-size: 24px;
         }
     }
 </style>
